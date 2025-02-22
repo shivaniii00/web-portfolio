@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shivani's VFX Den</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <canvas id="three-canvas"></canvas>
+
+  <div id="video-popup">
+    <video id="video-player" controls>
+      <source id="video-source" src="" type="video/mp4" />
+    </video>
+    <button id="close-popup">✖</button>
+  </div>
+
+  <div id="resume-popup">
+    <iframe id="resume-viewer" src="/documents/resume.pdf"></iframe>
+    <button id="close-resume-popup">✖</button>
+  </div>
+
+  <div id="image-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.8); justify-content: center; align-items: center;">
+    <img id="overlay-image" src="" alt="Overlay Image" style="max-width: 80%; max-height: 80%;">
+    <button id="close-overlay" style="position: absolute; top: 10px; right: 10px; background: red; color: white; border: none; padding: 10px; cursor: pointer;">X</button>
+</div>
+
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

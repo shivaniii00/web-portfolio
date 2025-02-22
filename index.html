@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome</title>
+  <link rel="stylesheet" href="./style.css">
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: black;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    
+    #enter-button {
+      font-size: 2rem;
+      padding: 20px 40px;
+      border: 2px solid white;
+      background: transparent;
+      color: white;
+      cursor: pointer;
+      transition: 0.3s ease;
+    }
+
+    #enter-button:hover {
+      background: white;
+      color: black;
+    }
+
+    #fade-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: black;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 1s ease-in-out;
+    }
+  </style>
+</head>
+<body>
+
+  <button id="enter-button">ENTER</button>
+  <div id="fade-overlay"></div>
+
+  <script>
+    document.getElementById("enter-button").addEventListener("click", function() {
+      const overlay = document.getElementById("fade-overlay");
+      overlay.style.visibility = "visible";
+      overlay.style.opacity = "1";
+      setTimeout(() => {
+        window.location.href = "./main.html"; // Redirect to main portfolio page
+      }, 1000); // 1-second fade effect
+    });
+  </script>
+
+</body>
+</html>
