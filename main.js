@@ -36,9 +36,12 @@ controls.maxPolarAngle = Math.PI / 2.2;
 controls.minPolarAngle = Math.PI / 3;
 controls.enableZoom = true;
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Lower ambient for better glow effect
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.1); // ✅ Lower intensity
 scene.add(ambientLight);
 
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+directionalLight.position.set(5, 5, 5);
+scene.add(directionalLight);
 
 
 
