@@ -3,17 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shivani's VFX Den</title>
+  <title>Shivani's VFX Scene</title>
   <link rel="stylesheet" href="/style.css" />
-
-  <!-- Import Map for Three.js -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
-      }
-    }
-  </script>
 </head>
 <body>
   <canvas id="three-canvas"></canvas>
@@ -41,7 +32,7 @@
     console.log("✅ Three.js loaded:", THREE);
   </script>
 
-  <!-- Ensure main.js Loads After Import Map -->
-  <script type="module" defer src="main.js"></script>
+  <!-- Ensure main.js Loads Correctly -->
+  <script type="module" src="main.js"></script>
 </body>
 </html>
