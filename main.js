@@ -40,12 +40,6 @@ const ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Lower ambient for
 scene.add(ambientLight);
 
 
-// Spotlight for contrast
-const spotlight = new THREE.SpotLight(0xffffff, 1.2);
-spotlight.position.set(0, 5, 5);
-spotlight.angle = Math.PI / 6;
-spotlight.penumbra = 0.5;
-scene.add(spotlight);
 
 
 // 🎵 Audio setup
