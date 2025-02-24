@@ -26,6 +26,14 @@
     <button id="close-overlay">X</button>
   </div>
 
+  <!-- Three.js from CDN -->
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.128.0/build/three.module.js";
+
+    // Test if Three.js loads correctly
+    console.log("✅ Three.js loaded:", THREE);
+  </script>
+
   <script type="module" src="main.js"></script>
 </body>
 </html>
