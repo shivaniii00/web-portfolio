@@ -174,7 +174,7 @@ const screenImages = {
   "access_screen": "/images/intro_2.png" // Add access_screen mapped to an image
 };
 
-const resumeURL = "/documents/resume.pdf";
+const resumeURL = "resume.pdf";
 
 // ✅ Your Custom Bounding Box Names from Blender
 const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
