@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Shivani's VFX Den</title>
   <link rel="stylesheet" href="/style.css" />
+
+  <!-- Import Map for Three.js -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+      }
+    }
+  </script>
 </head>
 <body>
   <canvas id="three-canvas"></canvas>
@@ -26,14 +35,13 @@
     <button id="close-overlay">X</button>
   </div>
 
-  <!-- Three.js from CDN -->
+  <!-- Test if Three.js loads correctly -->
   <script type="module">
-    import * as THREE from "https://unpkg.com/three@0.128.0/build/three.module.js";
-
-    // Test if Three.js loads correctly
+    import * as THREE from "three";
     console.log("✅ Three.js loaded:", THREE);
   </script>
 
+  <!-- Your Main Script -->
   <script type="module" src="main.js"></script>
 </body>
 </html>
