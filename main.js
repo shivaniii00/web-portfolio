@@ -26,6 +26,9 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding; // ✅ Fix washed-out colors
 renderer.toneMapping = THREE.ACESFilmicToneMapping; // ✅ Keep consistent color grading
 renderer.toneMappingExposure = 1.0; // ✅ Adjust this if too bright/dark
+// 🔹 ✅ Add These Two Lines Here (Right After Renderer Initialization)
+renderer.physicallyCorrectLights = true; // ✅ Fix lighting inconsistencies
+THREE.ColorManagement.enabled = true; // ✅ Ensures color consistency across devices
 document.body.appendChild(renderer.domElement);
 
 
@@ -36,13 +39,16 @@ controls.maxPolarAngle = Math.PI / 2.2;
 controls.minPolarAngle = Math.PI / 3;
 controls.enableZoom = true;
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.1); // ✅ Lower intensity
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Lower ambient for better glow effect
 scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(5, 5, 5);
-scene.add(directionalLight);
 
+// Spotlight for contrast
+const spotlight = new THREE.SpotLight(0xffffff, 1.2);
+spotlight.position.set(0, 5, 5);
+spotlight.angle = Math.PI / 6;
+spotlight.penumbra = 0.5;
+scene.add(spotlight);
 
 
 // 🎵 Audio setup
