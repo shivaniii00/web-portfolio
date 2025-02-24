@@ -28,9 +28,14 @@ document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+controls.dampingFactor = 0.05;
 controls.maxPolarAngle = Math.PI / 2.2;
 controls.minPolarAngle = Math.PI / 3;
-controls.enableZoom = true;
+controls.enableZoom = true; // ✅ Allow zooming on mobile
+controls.enablePan = true; // ✅ Enable panning on mobile
+controls.touchZoomSpeed = 0.5; // ✅ Adjust touch zoom sensitivity
+controls.touchRotateSpeed = 1.0; // ✅ Adjust touch rotation speed
+
 
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Lower ambient for better glow effect
 scene.add(ambientLight);
@@ -113,39 +118,48 @@ scene.add(waterReflector);
 
 const clock = new THREE.Clock();
 
-window.addEventListener('click', (event) => {
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+function onUserInteraction(event) {
+    event.preventDefault();
 
-  raycaster.setFromCamera(mouse, camera);
+    let touch = event.touches ? event.touches[0] : event;
+    const mouse = new THREE.Vector2();
+    mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
 
-  raycaster.layers.set(0); // Check Layer 0 (clickable objects)
-  const clickableIntersects = raycaster.intersectObjects([...Object.values(clickableScreens), resumeScreen].filter(Boolean));
+    raycaster.setFromCamera(mouse, camera);
 
-  if (clickableIntersects.length > 0) {
-      const clickedObject = clickableIntersects[0].object;
+    raycaster.layers.set(0); // Check Layer 0 (clickable objects)
+    const clickableIntersects = raycaster.intersectObjects([...Object.values(clickableScreens), resumeScreen].filter(Boolean));
 
-      // Play beep sound on click
-      if (!clickSound.isPlaying) clickSound.play();
+    if (clickableIntersects.length > 0) {
+        const clickedObject = clickableIntersects[0].object;
 
-      raycaster.layers.set(1); // Check walls
-      const wallIntersects = raycaster.intersectObjects(walls, true);
+        // Play beep sound on click
+        if (!clickSound.isPlaying) clickSound.play();
 
-      if (wallIntersects.length > 0 && wallIntersects[0].distance < clickableIntersects[0].distance) {
-          console.log("❌ Click Blocked by Wall:", wallIntersects[0].object.name);
-          return;
-      }
+        raycaster.layers.set(1); // Check walls
+        const wallIntersects = raycaster.intersectObjects(walls, true);
 
-      console.log("✅ Clicked:", clickedObject.name);
-      if (screenVideos[clickedObject.name]) {
-          panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
-      } else if (clickedObject === resumeScreen) {
-          panToScreen(resumeScreen, openResumePopup);
-      } else if (screenImages[clickedObject.name]) {
-          panToScreen(clickedObject, () => openImageOverlay(screenImages[clickedObject.name]));
-      }
-  }
-});
+        if (wallIntersects.length > 0 && wallIntersects[0].distance < clickableIntersects[0].distance) {
+            console.log("❌ Click Blocked by Wall:", wallIntersects[0].object.name);
+            return;
+        }
+
+        console.log("✅ Clicked:", clickedObject.name);
+        if (screenVideos[clickedObject.name]) {
+            panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
+        } else if (clickedObject === resumeScreen) {
+            panToScreen(resumeScreen, openResumePopup);
+        } else if (screenImages[clickedObject.name]) {
+            panToScreen(clickedObject, () => openImageOverlay(screenImages[clickedObject.name]));
+        }
+    }
+}
+
+// ✅ Add event listeners for BOTH clicks and touches
+window.addEventListener("click", onUserInteraction);
+window.addEventListener("touchstart", onUserInteraction, { passive: false });
+
 
 
 function animate() {
@@ -340,13 +354,9 @@ document.getElementById("close-popup").addEventListener("click", () => {
   if (!ambienceSound.isPlaying) ambienceSound.play();
 });
 
-
 document.getElementById("close-resume-popup").addEventListener("click", () => {
     document.getElementById("resume-popup").style.display = "none";
 });
-
-
-
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
