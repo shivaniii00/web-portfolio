@@ -26,21 +26,21 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
 
-
-
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI / 2.2;
 controls.minPolarAngle = Math.PI / 3;
 controls.enableZoom = true;
 
-// ✅ Reduce ambient light intensity (lower calculation cost)
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Lower ambient for better glow effect
 scene.add(ambientLight);
 
-// ✅ Reduce shadow complexity if enabled
-const spotlight = new THREE.SpotLight(0xffffff, 0.8, 10, Math.PI / 6, 0.5);
+
+// Spotlight for contrast
+const spotlight = new THREE.SpotLight(0xffffff, 1.2);
 spotlight.position.set(0, 5, 5);
+spotlight.angle = Math.PI / 6;
+spotlight.penumbra = 0.5;
 scene.add(spotlight);
 
 
