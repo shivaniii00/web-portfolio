@@ -6,11 +6,22 @@
   <title>Shivani's VFX Scene</title>
   <link rel="stylesheet" href="/style.css" />
 
-  <!-- ✅ Fix: Import Map for Three.js -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+  <!-- Import Map for Three.js (only if not inherited from index.html) -->
+  <script>
+    if (!document.querySelector('script[type="importmap"]')) {
+      const savedMap = sessionStorage.getItem("importMap");
+      if (savedMap) {
+        document.head.insertAdjacentHTML("beforeend", savedMap);
+      } else {
+        document.write(`
+          <script type="importmap">
+            {
+              "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+              }
+            }
+          </script>
+        `);
       }
     }
   </script>
@@ -35,13 +46,13 @@
     <button id="close-overlay">X</button>
   </div>
 
-  <!-- ✅ Fix: Test if Three.js loads -->
+  <!-- Test Three.js in Console -->
   <script type="module">
     import * as THREE from "three";
-    console.log("✅ Three.js loaded successfully:", THREE);
+    console.log("✅ Three.js loaded:", THREE);
   </script>
 
-  <!-- ✅ Fix: Load main.js correctly -->
+  <!-- Ensure main.js Loads Correctly -->
   <script type="module" src="main.js"></script>
 </body>
 </html>
