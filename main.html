@@ -6,14 +6,22 @@
   <title>Shivani's VFX Scene</title>
   <link rel="stylesheet" href="/style.css" />
 
-  <!-- ✅ Fix: Import Map for Three.js -->
+  <!-- ✅ Import Map for Three.js & Extensions -->
   <script type="importmap">
     {
       "imports": {
-        "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+        "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+        "three/examples/jsm/loaders/GLTFLoader.js": "https://unpkg.com/three@0.128.0/examples/jsm/loaders/GLTFLoader.js",
+        "three/examples/jsm/controls/OrbitControls.js": "https://unpkg.com/three@0.128.0/examples/jsm/controls/OrbitControls.js",
+        "three/examples/jsm/postprocessing/EffectComposer.js": "https://unpkg.com/three@0.128.0/examples/jsm/postprocessing/EffectComposer.js",
+        "three/examples/jsm/postprocessing/RenderPass.js": "https://unpkg.com/three@0.128.0/examples/jsm/postprocessing/RenderPass.js",
+        "three/examples/jsm/postprocessing/UnrealBloomPass.js": "https://unpkg.com/three@0.128.0/examples/jsm/postprocessing/UnrealBloomPass.js",
+        "three/examples/jsm/objects/Reflector.js": "https://unpkg.com/three@0.128.0/examples/jsm/objects/Reflector.js",
+        "three/examples/jsm/postprocessing/ShaderPass.js": "https://unpkg.com/three@0.128.0/examples/jsm/postprocessing/ShaderPass.js"
       }
     }
   </script>
+
 </head>
 <body>
   <canvas id="three-canvas"></canvas>
@@ -35,13 +43,14 @@
     <button id="close-overlay">X</button>
   </div>
 
-  <!-- ✅ Fix: Test if Three.js loads -->
+  <!-- ✅ Test if Three.js loads correctly -->
   <script type="module">
     import * as THREE from "three";
     console.log("✅ Three.js loaded successfully:", THREE);
   </script>
 
-  <!-- ✅ Fix: Load main.js correctly -->
+  <!-- ✅ Fix: Load main.js AFTER import map -->
   <script type="module" src="main.js"></script>
+
 </body>
 </html>
