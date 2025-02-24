@@ -47,7 +47,7 @@ const audioLoader = new THREE.AudioLoader();
 
 // ✅ Ambient Sound (Plays in loop)
 const ambienceSound = new THREE.Audio(listener);
-audioLoader.load('./sounds/ambience.wav', (buffer) => {
+audioLoader.load('public/sounds/ambience.wav', (buffer) => {
   ambienceSound.setBuffer(buffer);
   ambienceSound.setLoop(true);
   ambienceSound.setVolume(0.3);
@@ -56,7 +56,7 @@ audioLoader.load('./sounds/ambience.wav', (buffer) => {
 
 // ✅ Click Sound (Plays on interaction)
 const clickSound = new THREE.Audio(listener);
-audioLoader.load('/sounds/beep.mp3', (buffer) => {
+audioLoader.load('public/sounds/beep.mp3', (buffer) => {
   clickSound.setBuffer(buffer);
   clickSound.setLoop(false);
   clickSound.setVolume(0.5);
@@ -64,7 +64,7 @@ audioLoader.load('/sounds/beep.mp3', (buffer) => {
 
 // ✅ Woosh Sound (Plays when a pop-up opens)
 const wooshSound = new THREE.Audio(listener);
-audioLoader.load('/sounds/woosh.wav', (buffer) => {
+audioLoader.load('public/sounds/woosh.wav', (buffer) => {
   wooshSound.setBuffer(buffer);
   wooshSound.setLoop(false);
   wooshSound.setVolume(0.7);
@@ -166,14 +166,14 @@ const walls = []; // Walls will be stored here
 
 
 const screenVideos = {
-    "screen_3dcompositing": "/videos/3D_Compositing.mp4",
-    "screen_2dcompositing": "/videos/2D_Compositing.mp4",
-    "screen_photogrammetry": "/videos/Photogrammetry.mp4"
+    "screen_3dcompositing": "public/videos/3D_Compositing.mp4",
+    "screen_2dcompositing": "public/videos/2D_Compositing.mp4",
+    "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
     
 };
 
 const screenImages = {
-  "access_screen": "/images/intro_2.png" // Add access_screen mapped to an image
+  "access_screen": "public/images/intro_2.png" // Add access_screen mapped to an image
 };
 
 const resumeURL = "resume.pdf";
@@ -182,7 +182,7 @@ const resumeURL = "resume.pdf";
 const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
 
 // ✅ Load the 3D Model
-loader.load('./models/cyberpunk_station.glb', function (gltf) {
+loader.load('public/models/cyberpunk_station.glb', function (gltf) {
     const model = gltf.scene;
     scene.add(model);
 
