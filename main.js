@@ -17,15 +17,13 @@ camera.position.set(0, 0, 10);
 
 const renderer = new THREE.WebGLRenderer({
   canvas: document.getElementById("three-canvas"),
-  antialias: false, 
-  powerPreference: "high-performance",
+  antialias: false, // ✅ Disable antialiasing for performance
+  powerPreference: "high-performance", // ✅ Force high-performance GPU usage
 });
-
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // ✅ Limit pixel density
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputEncoding = THREE.sRGBEncoding; // ✅ Fix washed-out colors
-renderer.toneMapping = THREE.ACESFilmicToneMapping; // ✅ Keep consistent color grading
-renderer.toneMappingExposure = 1.0; // ✅ Adjust this if too bright/dark
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
 
 
