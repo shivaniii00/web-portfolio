@@ -1,4 +1,4 @@
-console.log("✅ main.js is running!");
+Fconsole.log("✅ main.js is running!");
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -17,14 +17,17 @@ camera.position.set(0, 0, 10);
 
 const renderer = new THREE.WebGLRenderer({
   canvas: document.getElementById("three-canvas"),
-  antialias: false, // ✅ Disable antialiasing for performance
-  powerPreference: "high-performance", // ✅ Force high-performance GPU usage
+  antialias: false, 
+  powerPreference: "high-performance",
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // ✅ Limit pixel density
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.outputEncoding = THREE.sRGBEncoding; // ✅ Fix washed-out colors
+renderer.toneMapping = THREE.ACESFilmicToneMapping; // ✅ Keep consistent color grading
+renderer.toneMappingExposure = 1.0; // ✅ Adjust this if too bright/dark
 document.body.appendChild(renderer.domElement);
+
 
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -201,7 +204,9 @@ loader.load('public/models/cyberpunk_station.glb', function (gltf) {
             child.material.roughness = 0.2;
             child.material.envMapIntensity = 1.2;
             child.material.needsUpdate = true;
-
+          
+          if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+          if (child.material.emissiveMap) child.material.emissiveMap.encoding = THREE.sRGBEncoding;
             // ✅ Assign Layers
             if (screenVideos[child.name]) {
                 clickableScreens[child.name] = child;
