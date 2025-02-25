@@ -397,7 +397,7 @@ document.getElementById("close-overlay").addEventListener("touchstart", () => {
   document.getElementById("image-overlay").style.display = "none";
 }, { passive: false });
 
-});
+);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
