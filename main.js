@@ -340,20 +340,38 @@ function openImageOverlay(imagePath) {
   overlay.style.zIndex = "9999";
 }
 
-// Close overlay when clicking the button
-document.getElementById("close-overlay").addEventListener("click", () => {
-  document.getElementById("image-overlay").style.display = "none";
-});
+// ✅ Function to close popups
+function closePopup(event) {
+  event.preventDefault(); // ✅ Prevents unwanted extra touch events on mobile
+  console.log("✅ Close button clicked:", event.target.id); // ✅ Debugging log
 
-document.getElementById("close-popup").addEventListener("click", () => {
-  document.getElementById("video-popup").style.display = "none";
-
-  // Resume ambient music when the video popup is closed
-  if (!ambienceSound.isPlaying) ambienceSound.play();
-});
-
-document.getElementById("close-resume-popup").addEventListener("click", () => {
+  if (event.target.id === "close-popup") {
+    document.getElementById("video-popup").style.display = "none";
+    if (!ambienceSound.isPlaying) ambienceSound.play();
+  } else if (event.target.id === "close-resume-popup") {
     document.getElementById("resume-popup").style.display = "none";
+  } else if (event.target.id === "close-overlay") {
+    document.getElementById("image-overlay").style.display = "none";
+  }
+}
+
+// ✅ Function to safely add event listeners
+function addCloseEventListener(buttonId) {
+  const button = document.getElementById(buttonId);
+  if (button) {
+    button.addEventListener("click", closePopup);
+    button.addEventListener("touchstart", closePopup, { passive: false });
+    console.log(`✅ Close event added for ${buttonId}`);
+  } else {
+    console.error(`❌ Close button not found: ${buttonId}`);
+  }
+}
+
+// ✅ Attach event listeners for closing popups
+addCloseEventListener("close-popup");
+addCloseEventListener("close-resume-popup");
+addCloseEventListener("close-overlay");
+
 });
 
 
