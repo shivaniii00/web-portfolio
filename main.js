@@ -340,6 +340,37 @@ function openImageOverlay(imagePath) {
   overlay.style.zIndex = "9999";
 }
 
+// Ensure close buttons exist before adding event listeners
+function addCloseEventListener(buttonId, closeFunction) {
+  const button = document.getElementById(buttonId);
+  if (button) {
+    button.addEventListener("click", closeFunction);
+    button.addEventListener("touchstart", closeFunction, { passive: false });
+  } else {
+    console.error(`❌ Button not found: ${buttonId}`);
+  }
+}
+
+function closePopup(event) {
+  event.preventDefault();
+  document.getElementById("video-popup").style.display = "none";
+  if (!ambienceSound.isPlaying) ambienceSound.play();
+}
+
+function closeResumePopup(event) {
+  event.preventDefault();
+  document.getElementById("resume-popup").style.display = "none";
+}
+
+function closeOverlay(event) {
+  event.preventDefault();
+  document.getElementById("image-overlay").style.display = "none";
+}
+
+// ✅ Add event listeners for closing popups
+addCloseEventListener("close-popup", closePopup);
+addCloseEventListener("close-resume-popup", closeResumePopup);
+addCloseEventListener("close-overlay", closeOverlay);
 
 
 function closePopup(event) {
