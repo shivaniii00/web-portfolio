@@ -342,20 +342,30 @@ function openImageOverlay(imagePath) {
 
 
 
-// Close overlay when clicking the button
+function closePopup(event) {
+  event.preventDefault(); // ✅ Prevents ghost clicks on mobile
+  document.getElementById("video-popup").style.display = "none";
+  if (!ambienceSound.isPlaying) ambienceSound.play();
+}
+
+// ✅ Listen for BOTH "click" and "touchstart"
+document.getElementById("close-popup").addEventListener("click", closePopup);
+document.getElementById("close-popup").addEventListener("touchstart", closePopup, { passive: false });
+
+document.getElementById("close-resume-popup").addEventListener("click", () => {
+  document.getElementById("resume-popup").style.display = "none";
+});
+document.getElementById("close-resume-popup").addEventListener("touchstart", () => {
+  document.getElementById("resume-popup").style.display = "none";
+}, { passive: false });
+
 document.getElementById("close-overlay").addEventListener("click", () => {
   document.getElementById("image-overlay").style.display = "none";
 });
+document.getElementById("close-overlay").addEventListener("touchstart", () => {
+  document.getElementById("image-overlay").style.display = "none";
+}, { passive: false });
 
-document.getElementById("close-popup").addEventListener("click", () => {
-  document.getElementById("video-popup").style.display = "none";
-
-  // Resume ambient music when the video popup is closed
-  if (!ambienceSound.isPlaying) ambienceSound.play();
-});
-
-document.getElementById("close-resume-popup").addEventListener("click", () => {
-    document.getElementById("resume-popup").style.display = "none";
 });
 
 const composer = new EffectComposer(renderer);
