@@ -340,64 +340,22 @@ function openImageOverlay(imagePath) {
   overlay.style.zIndex = "9999";
 }
 
-// Ensure close buttons exist before adding event listeners
-function addCloseEventListener(buttonId, closeFunction) {
-  const button = document.getElementById(buttonId);
-  if (button) {
-    button.addEventListener("click", closeFunction);
-    button.addEventListener("touchstart", closeFunction, { passive: false });
-  } else {
-    console.error(`❌ Button not found: ${buttonId}`);
-  }
-}
-
-function closePopup(event) {
-  event.preventDefault();
-  document.getElementById("video-popup").style.display = "none";
-  if (!ambienceSound.isPlaying) ambienceSound.play();
-}
-
-function closeResumePopup(event) {
-  event.preventDefault();
-  document.getElementById("resume-popup").style.display = "none";
-}
-
-function closeOverlay(event) {
-  event.preventDefault();
-  document.getElementById("image-overlay").style.display = "none";
-}
-
-// ✅ Add event listeners for closing popups
-addCloseEventListener("close-popup", closePopup);
-addCloseEventListener("close-resume-popup", closeResumePopup);
-addCloseEventListener("close-overlay", closeOverlay);
-
-
-function closePopup(event) {
-  event.preventDefault(); // ✅ Prevents ghost clicks on mobile
-  document.getElementById("video-popup").style.display = "none";
-  if (!ambienceSound.isPlaying) ambienceSound.play();
-}
-
-// ✅ Listen for BOTH "click" and "touchstart"
-document.getElementById("close-popup").addEventListener("click", closePopup);
-document.getElementById("close-popup").addEventListener("touchstart", closePopup, { passive: false });
-
-document.getElementById("close-resume-popup").addEventListener("click", () => {
-  document.getElementById("resume-popup").style.display = "none";
-});
-document.getElementById("close-resume-popup").addEventListener("touchstart", () => {
-  document.getElementById("resume-popup").style.display = "none";
-}, { passive: false });
-
+// Close overlay when clicking the button
 document.getElementById("close-overlay").addEventListener("click", () => {
   document.getElementById("image-overlay").style.display = "none";
 });
-document.getElementById("close-overlay").addEventListener("touchstart", () => {
-  document.getElementById("image-overlay").style.display = "none";
-}, { passive: false });
 
-);
+document.getElementById("close-popup").addEventListener("click", () => {
+  document.getElementById("video-popup").style.display = "none";
+
+  // Resume ambient music when the video popup is closed
+  if (!ambienceSound.isPlaying) ambienceSound.play();
+});
+
+document.getElementById("close-resume-popup").addEventListener("click", () => {
+    document.getElementById("resume-popup").style.display = "none";
+});
+
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
