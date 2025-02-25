@@ -372,7 +372,6 @@ addCloseEventListener("close-popup");
 addCloseEventListener("close-resume-popup");
 addCloseEventListener("close-overlay");
 
-});
 
 
 const composer = new EffectComposer(renderer);
