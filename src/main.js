@@ -7,6 +7,17 @@ import { UnrealBloomPass } from "https://unpkg.com/three@0.128.0/examples/jsm/po
 import { Reflector } from "https://unpkg.com/three@0.128.0/examples/jsm/objects/Reflector.js";
 import { ShaderPass } from "https://unpkg.com/three@0.128.0/examples/jsm/postprocessing/ShaderPass.js";
 
+const loadingManager = new THREE.LoadingManager();
+
+loadingManager.onProgress = function (url, itemsLoaded, itemsTotal) {
+  const progress = (itemsLoaded / itemsTotal) * 100;
+  document.getElementById("progress-bar").style.width = `${progress}%`;
+  document.getElementById("progress-text").textContent = `Loading... ${Math.round(progress)}%`;
+};
+
+loadingManager.onLoad = function () {
+  document.getElementById("loading-screen").style.display = "none";
+};
 
 
 const scene = new THREE.Scene();
@@ -159,7 +170,7 @@ function animate() {
 }
 
 // Variables for clickable objects
-const loader = new GLTFLoader();
+const loader = new GLTFLoader(loadingManager);
 let clickableScreens = {};
 let resumeScreen = null;
 const walls = []; // Walls will be stored here
