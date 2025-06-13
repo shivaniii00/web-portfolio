@@ -185,8 +185,8 @@ const walls = []; // Walls will be stored here
 
 
 const screenVideos = {
-    "screen_3dcompositing": "public/videos/3D_Compositing.mp4",
-    "screen_2dcompositing": "public/videos/2D_Compositing.mp4",
+    "screen_3dcompositing": "public/videos/Showreel_Personal.mp4",
+    "screen_2dcompositing": "public/videos/Showreel_Professional.mp4",
     "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
     
 };
