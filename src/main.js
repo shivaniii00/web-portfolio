@@ -1,24 +1,13 @@
-import * as THREE from "https://unpkg.com/three@0.128.0/build/three.module.js";
-import { GLTFLoader } from "https://unpkg.com/three@0.128.0/examples/jsm/loaders/GLTFLoader.js";
-import { OrbitControls } from "https://unpkg.com/three@0.128.0/examples/jsm/controls/OrbitControls.js";
-import { EffectComposer } from "https://unpkg.com/three@0.128.0/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "https://unpkg.com/three@0.128.0/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "https://unpkg.com/three@0.128.0/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { Reflector } from "https://unpkg.com/three@0.128.0/examples/jsm/objects/Reflector.js";
-import { ShaderPass } from "https://unpkg.com/three@0.128.0/examples/jsm/postprocessing/ShaderPass.js";
+console.log("✅ main.js is running!");
 
-const loadingManager = new THREE.LoadingManager();
-
-loadingManager.onProgress = function (url, itemsLoaded, itemsTotal) {
-  const progress = (itemsLoaded / itemsTotal) * 100;
-  document.getElementById("progress-bar").style.width = `${progress}%`;
-  document.getElementById("progress-text").textContent = `Loading... ${Math.round(progress)}%`;
-};
-
-loadingManager.onLoad = function () {
-  document.getElementById("loading-screen").style.display = "none";
-};
-
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { Reflector } from "three/examples/jsm/objects/Reflector.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
@@ -26,17 +15,27 @@ scene.background = new THREE.Color(0x000000);
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 0, 10);
 
-const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('three-canvas'), antialias: true });
+const renderer = new THREE.WebGLRenderer({
+  canvas: document.getElementById("three-canvas"),
+  antialias: false, // ✅ Disable antialiasing for performance
+  powerPreference: "high-performance", // ✅ Force high-performance GPU usage
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // ✅ Limit pixel density
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+controls.dampingFactor = 0.05;
 controls.maxPolarAngle = Math.PI / 2.2;
 controls.minPolarAngle = Math.PI / 3;
-controls.enableZoom = true;
+controls.enableZoom = true; // ✅ Allow zooming on mobile
+controls.enablePan = true; // ✅ Enable panning on mobile
+controls.touchZoomSpeed = 0.5; // ✅ Adjust touch zoom sensitivity
+controls.touchRotateSpeed = 1.0; // ✅ Adjust touch rotation speed
+
 
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Lower ambient for better glow effect
 scene.add(ambientLight);
@@ -58,7 +57,7 @@ const audioLoader = new THREE.AudioLoader();
 
 // ✅ Ambient Sound (Plays in loop)
 const ambienceSound = new THREE.Audio(listener);
-audioLoader.load('/sounds/ambience.wav', (buffer) => {
+audioLoader.load('public/sounds/ambience.wav', (buffer) => {
   ambienceSound.setBuffer(buffer);
   ambienceSound.setLoop(true);
   ambienceSound.setVolume(0.3);
@@ -67,7 +66,7 @@ audioLoader.load('/sounds/ambience.wav', (buffer) => {
 
 // ✅ Click Sound (Plays on interaction)
 const clickSound = new THREE.Audio(listener);
-audioLoader.load('/sounds/beep.mp3', (buffer) => {
+audioLoader.load('public/sounds/beep.mp3', (buffer) => {
   clickSound.setBuffer(buffer);
   clickSound.setLoop(false);
   clickSound.setVolume(0.5);
@@ -75,7 +74,7 @@ audioLoader.load('/sounds/beep.mp3', (buffer) => {
 
 // ✅ Woosh Sound (Plays when a pop-up opens)
 const wooshSound = new THREE.Audio(listener);
-audioLoader.load('/sounds/woosh.wav', (buffer) => {
+audioLoader.load('public/sounds/woosh.wav', (buffer) => {
   wooshSound.setBuffer(buffer);
   wooshSound.setLoop(false);
   wooshSound.setVolume(0.7);
@@ -119,39 +118,48 @@ scene.add(waterReflector);
 
 const clock = new THREE.Clock();
 
-window.addEventListener('click', (event) => {
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+function onUserInteraction(event) {
+    event.preventDefault();
 
-  raycaster.setFromCamera(mouse, camera);
+    let touch = event.touches ? event.touches[0] : event;
+    const mouse = new THREE.Vector2();
+    mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
 
-  raycaster.layers.set(0); // Check Layer 0 (clickable objects)
-  const clickableIntersects = raycaster.intersectObjects([...Object.values(clickableScreens), resumeScreen].filter(Boolean));
+    raycaster.setFromCamera(mouse, camera);
 
-  if (clickableIntersects.length > 0) {
-      const clickedObject = clickableIntersects[0].object;
+    raycaster.layers.set(0); // Check Layer 0 (clickable objects)
+    const clickableIntersects = raycaster.intersectObjects([...Object.values(clickableScreens), resumeScreen].filter(Boolean));
 
-      // Play beep sound on click
-      if (!clickSound.isPlaying) clickSound.play();
+    if (clickableIntersects.length > 0) {
+        const clickedObject = clickableIntersects[0].object;
 
-      raycaster.layers.set(1); // Check walls
-      const wallIntersects = raycaster.intersectObjects(walls, true);
+        // Play beep sound on click
+        if (!clickSound.isPlaying) clickSound.play();
 
-      if (wallIntersects.length > 0 && wallIntersects[0].distance < clickableIntersects[0].distance) {
-          console.log("❌ Click Blocked by Wall:", wallIntersects[0].object.name);
-          return;
-      }
+        raycaster.layers.set(1); // Check walls
+        const wallIntersects = raycaster.intersectObjects(walls, true);
 
-      console.log("✅ Clicked:", clickedObject.name);
-      if (screenVideos[clickedObject.name]) {
-          panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
-      } else if (clickedObject === resumeScreen) {
-          panToScreen(resumeScreen, openResumePopup);
-      } else if (screenImages[clickedObject.name]) {
-          panToScreen(clickedObject, () => openImageOverlay(screenImages[clickedObject.name]));
-      }
-  }
-});
+        if (wallIntersects.length > 0 && wallIntersects[0].distance < clickableIntersects[0].distance) {
+            console.log("❌ Click Blocked by Wall:", wallIntersects[0].object.name);
+            return;
+        }
+
+        console.log("✅ Clicked:", clickedObject.name);
+        if (screenVideos[clickedObject.name]) {
+            panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
+        } else if (clickedObject === resumeScreen) {
+            panToScreen(resumeScreen, openResumePopup);
+        } else if (screenImages[clickedObject.name]) {
+            panToScreen(clickedObject, () => openImageOverlay(screenImages[clickedObject.name]));
+        }
+    }
+}
+
+// ✅ Add event listeners for BOTH clicks and touches
+window.addEventListener("click", onUserInteraction);
+window.addEventListener("touchstart", onUserInteraction, { passive: false });
+
 
 
 function animate() {
@@ -170,30 +178,30 @@ function animate() {
 }
 
 // Variables for clickable objects
-const loader = new GLTFLoader(loadingManager);
+const loader = new GLTFLoader();
 let clickableScreens = {};
 let resumeScreen = null;
 const walls = []; // Walls will be stored here
 
 
 const screenVideos = {
-    "screen_3dcompositing": "/videos/3D_Compositing.mp4",
-    "screen_2dcompositing": "/videos/2D_Compositing.mp4",
-    "screen_photogrammetry": "/videos/Photogrammetry.mp4"
+    "screen_3dcompositing": "public/videos/Showreel_Personal.mp4",
+    "screen_2dcompositing": "public/videos/Showreel_Professional.mp4",
+    "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
     
 };
 
 const screenImages = {
-  "access_screen": "/images/intro_2.png" // Add access_screen mapped to an image
+  "access_screen": "public/images/intro_2.png" // Add access_screen mapped to an image
 };
 
-const resumeURL = "/documents/resume.pdf";
+const resumeURL = "resume-vfx.pdf";
 
 // ✅ Your Custom Bounding Box Names from Blender
 const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
 
 // ✅ Load the 3D Model
-loader.load('/models/cyberpunk_station.glb', function (gltf) {
+loader.load('public/models/cyberpunk_station.glb', function (gltf) {
     const model = gltf.scene;
     scene.add(model);
 
@@ -206,7 +214,9 @@ loader.load('/models/cyberpunk_station.glb', function (gltf) {
             child.material.roughness = 0.2;
             child.material.envMapIntensity = 1.2;
             child.material.needsUpdate = true;
-
+          
+          if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+          if (child.material.emissiveMap) child.material.emissiveMap.encoding = THREE.sRGBEncoding;
             // ✅ Assign Layers
             if (screenVideos[child.name]) {
                 clickableScreens[child.name] = child;
@@ -330,25 +340,37 @@ function openImageOverlay(imagePath) {
   overlay.style.zIndex = "9999";
 }
 
+// ✅ Function to close popups
+function closePopup(event) {
+  event.preventDefault(); // ✅ Prevents unwanted extra touch events on mobile
+  console.log("✅ Close button clicked:", event.target.id); // ✅ Debugging log
 
-
-// Close overlay when clicking the button
-document.getElementById("close-overlay").addEventListener("click", () => {
-  document.getElementById("image-overlay").style.display = "none";
-});
-
-document.getElementById("close-popup").addEventListener("click", () => {
-  document.getElementById("video-popup").style.display = "none";
-
-  // Resume ambient music when the video popup is closed
-  if (!ambienceSound.isPlaying) ambienceSound.play();
-});
-
-
-document.getElementById("close-resume-popup").addEventListener("click", () => {
+  if (event.target.id === "close-popup") {
+    document.getElementById("video-popup").style.display = "none";
+    if (!ambienceSound.isPlaying) ambienceSound.play();
+  } else if (event.target.id === "close-resume-popup") {
     document.getElementById("resume-popup").style.display = "none";
-});
+  } else if (event.target.id === "close-overlay") {
+    document.getElementById("image-overlay").style.display = "none";
+  }
+}
 
+// ✅ Function to safely add event listeners
+function addCloseEventListener(buttonId) {
+  const button = document.getElementById(buttonId);
+  if (button) {
+    button.addEventListener("click", closePopup);
+    button.addEventListener("touchstart", closePopup, { passive: false });
+    console.log(`✅ Close event added for ${buttonId}`);
+  } else {
+    console.error(`❌ Close button not found: ${buttonId}`);
+  }
+}
+
+// ✅ Attach event listeners for closing popups
+addCloseEventListener("close-popup");
+addCloseEventListener("close-resume-popup");
+addCloseEventListener("close-overlay");
 
 
 
