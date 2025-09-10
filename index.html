@@ -15,6 +15,22 @@
     }
   </script>
 
+  <!-- Performance: warm up main.html and assets -->
+  <link rel="prefetch" href="/main.html" as="document">
+  <link rel="preload" href="/dist/main.css" as="style">
+  <link rel="preload" href="/dist/main.bundle.js" as="script">
+  <!-- Add other heavy assets here -->
+  <link rel="prefetch" href="/assets/models/bus-station.glb" as="fetch" crossorigin>
+  <link rel="prefetch" href="/assets/hdris/studio.hdr" as="fetch" crossorigin>
+
+  <!-- Chrome speculation rules: allow prerender -->
+  <script type="speculationrules">
+  {
+    "prefetch": [{ "source": "list", "urls": ["/main.html"] }],
+    "prerender": [{ "source": "list", "urls": ["/main.html"] }]
+  }
+  </script>
+
   <style>
     body {
       margin: 0;
@@ -25,6 +41,7 @@
       background-color: black;
       color: white;
       font-family: Arial, sans-serif;
+      transition: opacity 0.6s ease; /* fade during swap */
     }
     
     #enter-button {
@@ -61,13 +78,23 @@
   <div id="fade-overlay"></div>
 
   <script>
-    document.getElementById("enter-button").addEventListener("click", function() {
+    document.getElementById("enter-button").addEventListener("click", async function(e) {
+      e.preventDefault();
       const overlay = document.getElementById("fade-overlay");
       overlay.style.visibility = "visible";
       overlay.style.opacity = "1";
-      setTimeout(() => {
-        window.location.href = "main.html"; // Redirect to main portfolio page
-      }, 1000); // 1-second fade effect
+
+      // after fade, swap in main.html without full reload
+      setTimeout(async () => {
+        try {
+          const html = await (await fetch("/main.html", { credentials: "include" })).text();
+          history.pushState(null, "", "/main.html");
+          document.open(); document.write(html); document.close();
+        } catch (err) {
+          // fallback if fetch fails
+          window.location.href = "main.html";
+        }
+      }, 800); // slightly less than overlay duration
     });
   </script>
 
