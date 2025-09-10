@@ -195,7 +195,7 @@ const screenImages = {
   "access_screen": "public/images/intro_2.png" // Add access_screen mapped to an image
 };
 
-const resumeURL = "resume-vfx.pdf";
+const resumeURL = "Shivani_Resume_2025.pdf";
 
 // ✅ Your Custom Bounding Box Names from Blender
 const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
@@ -384,3 +384,4 @@ bloomPass.radius = 0.8;
 composer.addPass(bloomPass);
 
 animate();
+
