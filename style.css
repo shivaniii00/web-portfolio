@@ -144,4 +144,96 @@ canvas {
 }
 
 .pg-closeGrid {
-  posit
+  position: fixed; top: 16px; right: 16px;
+  font-size: 28px; line-height: 1;
+  border: 0; background: transparent; color: #fff; cursor: pointer;
+}
+
+/* Responsive auto-fill grid that never overflows horizontally */
+.pg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.pg-grid img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  cursor: zoom-in;
+  border-radius: 6px;
+  transition: transform 0.15s ease;
+}
+.pg-grid img:hover { transform: scale(1.03); }
+
+/* Lightbox overlay ABOVE grid, fully hides when not .pg-show */
+.pg-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transition: opacity .15s ease, visibility 0s linear .15s;
+}
+.pg-lightbox.pg-show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity .15s ease;
+}
+
+.pg-lightbox-scrim {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.65);
+  opacity: 0; transition: opacity .15s ease;
+}
+.pg-lightbox.pg-show .pg-lightbox-scrim { opacity: 1; }
+
+.pg-lightbox-inner {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Lightbox image (same style as #popup-image) */
+.pg-lightbox img {
+  width: auto;
+  height: auto;
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 10px;
+  box-shadow: 0 0 40px rgba(0, 255, 255, 0.8);
+  object-fit: contain;
+}
+
+/* ensure controls are above scrim */
+.pg-backToGrid, .pg-prev, .pg-next { z-index: 2; }
+
+/* Controls on top of the image */
+.pg-prev, .pg-next, .pg-backToGrid {
+  position: absolute;
+  border: 0; background: rgba(0,0,0,0.45); color: #fff; cursor: pointer;
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  font-size: 22px;
+  border-radius: 10px;
+}
+.pg-prev { left: 16px; }
+.pg-next { right: 16px; }
+.pg-backToGrid { top: 16px; left: 16px; font-size: 20px; width: 42px; height: 42px; }
+
+.pg-prev:hover, .pg-next:hover, .pg-backToGrid:hover, .pg-closeGrid:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+@media (max-width: 640px) {
+  .pg-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+
+/* Hide the grid close (×) when a photo overlay is open */
+.pg-overlay.pg-image-open .pg-closeGrid { display: none; }
+
+/* --- End Photography Gallery --- */
