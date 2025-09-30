@@ -9,6 +9,13 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 
+/* -------------------- quick asset config -------------------- */
+const ASSETS = {
+  MODEL: "public/models/cyberpunk_station.glb", // <-- ensure this file exists at this path
+  // If you actually have bus-station.glb, put that path here instead.
+  // MODEL: "public/models/bus-station.glb",
+};
+
 /* -------------------- Three.js scene -------------------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
@@ -22,7 +29,6 @@ const renderer = new THREE.WebGLRenderer({
   powerPreference: "high-performance",
 });
 
-// Start slightly lower DPR, bump later
 const isMobile = /Mobi|Android/i.test(navigator.userAgent);
 const startDPR = isMobile ? 1.25 : 1.5;
 renderer.setPixelRatio(startDPR);
@@ -31,7 +37,6 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
 
-// Gentle bump a bit later (optional)
 setTimeout(() => {
   const bump = isMobile ? 1.5 : 2;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, bump));
@@ -51,14 +56,13 @@ controls.touchRotateSpeed = 1.0;
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
 scene.add(ambientLight);
 
-// Spotlight for contrast
 const spotlight = new THREE.SpotLight(0xffffff, 1.2);
 spotlight.position.set(0, 5, 5);
 spotlight.angle = Math.PI / 6;
 spotlight.penumbra = 0.5;
 scene.add(spotlight);
 
-// Audio setup (lazy loaded)
+/* -------------------- Audio (lazy) -------------------- */
 const listener = new THREE.AudioListener();
 camera.add(listener);
 const audioLoader = new THREE.AudioLoader();
@@ -67,7 +71,6 @@ const ambienceSound = new THREE.Audio(listener);
 const clickSound = new THREE.Audio(listener);
 const wooshSound = new THREE.Audio(listener);
 
-// Lazy-load helper
 function loadSoundOnce(path, target, { loop=false, volume=0.5 } = {}) {
   return new Promise((resolve, reject) => {
     if (target.isAudio && target.buffer) return resolve();
@@ -80,7 +83,6 @@ function loadSoundOnce(path, target, { loop=false, volume=0.5 } = {}) {
   });
 }
 
-// Start ambience after first user gesture (avoids autoplay block)
 function setupAmbienceOnFirstGesture() {
   const start = async () => {
     try {
@@ -93,9 +95,9 @@ function setupAmbienceOnFirstGesture() {
 }
 setupAmbienceOnFirstGesture();
 
-/* -------------------- Reflective water (cheaper RT size) -------------------- */
+/* -------------------- Reflective water (reduced cost) -------------------- */
 const waterGeometry = new THREE.PlaneGeometry(100, 100);
-const scale = 0.5; // reduce reflection buffer size
+const scale = 0.5;
 const texW = Math.floor(window.innerWidth * window.devicePixelRatio * scale);
 const texH = Math.floor(window.innerHeight * window.devicePixelRatio * scale);
 
@@ -112,7 +114,6 @@ waterReflector.position.y = -0.5;
 waterReflector.material.onBeforeCompile = (shader) => {
   shader.uniforms.clickPosition = { value: new THREE.Vector2(-1, -1) };
   shader.uniforms.rippleTime = { value: 0 };
-
   shader.fragmentShader = shader.fragmentShader.replace(
     `gl_FragColor = vec4( base, 1.0 );`,
     `
@@ -126,7 +127,6 @@ waterReflector.material.onBeforeCompile = (shader) => {
     gl_FragColor = mix(vec4(base.rgb, 1.0), rippleColor, 0.85);
     `
   );
-
   waterReflector.userData.shader = shader;
 };
 
@@ -145,15 +145,15 @@ const screenVideos = {
 };
 
 const screenImages = {
-  "photography_portfolio": "__OPEN_GALLERY__" // opens gallery
+  "photography_portfolio": "__OPEN_GALLERY__"
 };
 
 const resumeURL = "Shivani_Resume_2025.pdf";
 const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
 
-// Delay heavy model load by one frame so page paints first
+// Delay heavy GLTF by one frame
 requestAnimationFrame(() => {
-  loader.load('public/models/cyberpunk_station.glb', (gltf) => {
+  loader.load(ASSETS.MODEL, (gltf) => {
     const model = gltf.scene;
     scene.add(model);
 
@@ -182,7 +182,6 @@ requestAnimationFrame(() => {
       }
     });
 
-    // Hide loading overlay now that model is ready
     const loading = document.getElementById('loading-overlay');
     if (loading) loading.style.display = 'none';
   }, undefined, (error) => {
@@ -197,8 +196,6 @@ const mouse = new THREE.Vector2();
 
 async function onUserInteraction(event) {
   event.preventDefault();
-
-  // Preload click sound just-in-time
   try { await loadSoundOnce('public/sounds/beep.mp3', clickSound, { volume: 0.5 }); if (!clickSound.isPlaying) clickSound.play(); } catch {}
 
   let point = event.touches ? event.touches[0] : event;
@@ -207,7 +204,6 @@ async function onUserInteraction(event) {
 
   raycaster.setFromCamera(mouse, camera);
 
-  // Intersect clickable objects
   raycaster.layers.set(0);
   const clickableIntersects = raycaster.intersectObjects(
     [...Object.values(clickableScreens), resumeScreen].filter(Boolean)
@@ -217,7 +213,6 @@ async function onUserInteraction(event) {
   const hit = clickableIntersects[0];
   const clickedObject = hit.object;
 
-  // Blocked by wall in front?
   raycaster.layers.set(1);
   const wallIntersects = raycaster.intersectObjects(walls, true);
   if (wallIntersects.length > 0 && wallIntersects[0].distance < hit.distance) {
@@ -243,7 +238,23 @@ async function onUserInteraction(event) {
 window.addEventListener("click", onUserInteraction);
 window.addEventListener("touchstart", onUserInteraction, { passive: false });
 
-/* -------------------- Camera pan helper -------------------- */
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (waterReflector.userData.shader) {
+    if (waterReflector.userData.shader.uniforms.rippleTime.value > 0) {
+      waterReflector.userData.shader.uniforms.rippleTime.value += 0.05;
+      if (waterReflector.userData.shader.uniforms.rippleTime.value > 3) {
+        waterReflector.userData.shader.uniforms.rippleTime.value = 0;
+      }
+    }
+  }
+
+  controls.update();
+  composer.render();
+}
+
+/* -------------------- Camera pan -------------------- */
 function panToScreen(target, callback) {
   const duration = 1000;
   const startPos = camera.position.clone();
@@ -322,7 +333,7 @@ addCloseEventListener("close-popup");
 addCloseEventListener("close-resume-popup");
 addCloseEventListener("close-overlay");
 
-/* -------------------- Postprocessing (bloom delayed) -------------------- */
+/* -------------------- Postprocessing -------------------- */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
@@ -330,32 +341,15 @@ let bloomPass = null;
 requestAnimationFrame(() => {
   bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
   bloomPass.threshold = 0.3;
-  bloomPass.strength = 1.0; // a bit lighter
+  bloomPass.strength = 1.0;
   bloomPass.radius = 0.6;
   composer.addPass(bloomPass);
 });
 
-function animate() {
-  requestAnimationFrame(animate);
-
-  if (waterReflector.userData.shader) {
-    if (waterReflector.userData.shader.uniforms.rippleTime.value > 0) {
-      waterReflector.userData.shader.uniforms.rippleTime.value += 0.05;
-      if (waterReflector.userData.shader.uniforms.rippleTime.value > 3) {
-        waterReflector.userData.shader.uniforms.rippleTime.value = 0;
-      }
-    }
-  }
-
-  controls.update();
-  composer.render();
-}
 animate();
 
 /* ================================
-   📸 PHOTOGRAPHY GALLERY MODULE
-   - Lazy loads on first open
-   - Back arrow closes ONLY the overlay
+   📸 PHOTOGRAPHY GALLERY MODULE (lazy)
    ================================ */
 const GALLERY_COUNT = 36;
 const GALLERY_DIR = 'public/photography/';
@@ -376,7 +370,6 @@ let currentIndex = 0;
 let galleryImages = [];
 let galleryReady = false;
 
-// Try to resolve a URL by testing extensions in order
 function resolveUrl(base) {
   return new Promise((resolve, reject) => {
     let i = 0;
@@ -393,7 +386,6 @@ function resolveUrl(base) {
 }
 
 async function buildGalleryList() {
-  // If all photos share a single ext, you can set EXT_CANDIDATES=['.jpg'] for fewer probes.
   const tasks = Array.from({ length: GALLERY_COUNT }, (_, k) => resolveUrl(String(k + 1)));
   const results = await Promise.allSettled(tasks);
   galleryImages = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
@@ -421,7 +413,6 @@ async function ensureGallery() {
   galleryReady = true;
 }
 
-// Open/close UI
 async function openGallery() {
   if (typeof controls !== 'undefined' && controls) controls.enabled = false;
   if (!galleryOverlay || !gridView) return;
@@ -444,11 +435,10 @@ function closeGallery() {
   if (typeof controls !== 'undefined' && controls) controls.enabled = true;
 }
 
-// Lightbox helpers (overlay on top of grid)
 function openLightbox(i) {
   currentIndex = i;
   setLightboxImage();
-  if (galleryOverlay) galleryOverlay.classList.add('pg-image-open'); // hides ×
+  if (galleryOverlay) galleryOverlay.classList.add('pg-image-open');
   if (lightbox) {
     lightbox.classList.add('pg-show');
     lightbox.setAttribute('aria-hidden','false');
@@ -461,7 +451,7 @@ function backToGrid() {
     lightbox.setAttribute('aria-hidden','true');
   }
   if (galleryOverlay) {
-    galleryOverlay.classList.remove('pg-image-open'); // re-show × on grid
+    galleryOverlay.classList.remove('pg-image-open');
   }
 }
 
@@ -473,16 +463,13 @@ function setLightboxImage() {
 function prev() { currentIndex = (currentIndex - 1 + galleryImages.length) % galleryImages.length; setLightboxImage(); }
 function next() { currentIndex = (currentIndex + 1) % galleryImages.length; setLightboxImage(); }
 
-// Events
 if (closeGridBtn) closeGridBtn.addEventListener('click', closeGallery);
 if (prevBtn) prevBtn.addEventListener('click', prev);
 if (nextBtn) nextBtn.addEventListener('click', next);
 
-// Direct back binding (if present)
 if (backBtn) {
   backBtn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); backToGrid(); });
 }
-// Global delegation fallback
 document.addEventListener('click', (e) => {
   const t = e.target;
   if (!t || t.nodeType !== 1) return;
@@ -492,8 +479,6 @@ document.addEventListener('click', (e) => {
     backToGrid();
   }
 });
-
-// Optional: click on scrim closes overlay too
 if (galleryOverlay) {
   galleryOverlay.addEventListener('click', (e) => {
     const el = e.target;
@@ -504,7 +489,6 @@ if (galleryOverlay) {
   });
 }
 
-// Keyboard
 window.addEventListener('keydown', (e) => {
   if (!galleryOverlay || !galleryOverlay.classList.contains('pg-open')) return;
   if (e.key === 'Escape') {
@@ -517,7 +501,6 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Touch swipe on lightbox
 let sx = 0, sy = 0;
 if (lightbox) {
   lightbox.addEventListener('touchstart', (e)=>{ const t = e.touches[0]; sx = t.clientX; sy = t.clientY; }, {passive:true});
