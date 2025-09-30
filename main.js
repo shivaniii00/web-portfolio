@@ -1,4 +1,4 @@
-Fconsole.log("✅ main.js is running!");
+console.log("✅ main.js is running!");
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -11,10 +11,28 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 
 /* -------------------- quick asset config -------------------- */
 const ASSETS = {
-  MODEL: "public/models/cyberpunk_station.glb", // <-- ensure this file exists at this path
-  // If you actually have bus-station.glb, put that path here instead.
-  // MODEL: "public/models/bus-station.glb",
+  MODEL: "public/models/cyberpunk_station.glb"
 };
+
+/* -------------------- Loading UI helpers -------------------- */
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingBarFill = document.getElementById('loading-bar-fill');
+const loadingPercentEl = document.getElementById('loading-percent');
+
+let lastShownPct = 0;
+function setProgress(pct) {
+  const p = Math.max(0, Math.min(100, pct|0));
+  if (p < lastShownPct) return; // never go backwards
+  lastShownPct = p;
+  if (loadingBarFill) loadingBarFill.style.width = p + '%';
+  if (loadingPercentEl) loadingPercentEl.textContent = p + '%';
+}
+function hideLoading() {
+  if (!loadingOverlay) return;
+  setProgress(100);
+  loadingOverlay.classList.add('hidden');
+  setTimeout(() => { loadingOverlay.style.display = 'none'; }, 400);
+}
 
 /* -------------------- Three.js scene -------------------- */
 const scene = new THREE.Scene();
@@ -55,7 +73,6 @@ controls.touchRotateSpeed = 1.0;
 
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
 scene.add(ambientLight);
-
 const spotlight = new THREE.SpotLight(0xffffff, 1.2);
 spotlight.position.set(0, 5, 5);
 spotlight.angle = Math.PI / 6;
@@ -66,7 +83,6 @@ scene.add(spotlight);
 const listener = new THREE.AudioListener();
 camera.add(listener);
 const audioLoader = new THREE.AudioLoader();
-
 const ambienceSound = new THREE.Audio(listener);
 const clickSound = new THREE.Audio(listener);
 const wooshSound = new THREE.Audio(listener);
@@ -82,7 +98,6 @@ function loadSoundOnce(path, target, { loop=false, volume=0.5 } = {}) {
     }, undefined, reject);
   });
 }
-
 function setupAmbienceOnFirstGesture() {
   const start = async () => {
     try {
@@ -129,11 +144,21 @@ waterReflector.material.onBeforeCompile = (shader) => {
   );
   waterReflector.userData.shader = shader;
 };
-
 scene.add(waterReflector);
 
-/* -------------------- Model & interactions -------------------- */
-const loader = new GLTFLoader();
+/* -------------------- LoadingManager + GLTF -------------------- */
+// Use a LoadingManager so textures referenced by the GLB contribute to progress.
+const manager = new THREE.LoadingManager();
+manager.onStart = () => { setProgress(5); };
+manager.onProgress = (url, itemsLoaded, itemsTotal) => {
+  // GLTF can reference textures; this tracks those too.
+  const pct = Math.round((itemsLoaded / Math.max(itemsTotal, 1)) * 90); // reserve 10% for scene prep
+  setProgress(Math.max(pct, lastShownPct));
+};
+manager.onError = (url) => { console.warn('Failed to load:', url); };
+
+const loader = new GLTFLoader(manager);
+
 let clickableScreens = {};
 let resumeScreen = null;
 const walls = [];
@@ -143,54 +168,68 @@ const screenVideos = {
   "screen_2dcompositing": "public/videos/Showreel_Professional.mp4",
   "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
 };
-
-const screenImages = {
-  "photography_portfolio": "__OPEN_GALLERY__"
-};
-
+const screenImages = { "photography_portfolio": "__OPEN_GALLERY__" };
 const resumeURL = "Shivani_Resume_2025.pdf";
 const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
 
 // Delay heavy GLTF by one frame
 requestAnimationFrame(() => {
-  loader.load(ASSETS.MODEL, (gltf) => {
-    const model = gltf.scene;
-    scene.add(model);
+  loader.load(
+    ASSETS.MODEL,
+    (gltf) => {
+      // Final 10%: building scene
+      setProgress(95);
 
-    model.traverse((child) => {
-      if (child.isMesh) {
-        if (!(child.material instanceof THREE.MeshStandardMaterial)) {
-          child.material = new THREE.MeshStandardMaterial({ color: child.material.color });
+      const model = gltf.scene;
+      scene.add(model);
+
+      model.traverse((child) => {
+        if (child.isMesh) {
+          if (!(child.material instanceof THREE.MeshStandardMaterial)) {
+            child.material = new THREE.MeshStandardMaterial({ color: child.material.color });
+          }
+          child.material.metalness = 0.8;
+          child.material.roughness = 0.2;
+          child.material.envMapIntensity = 1.2;
+          child.material.needsUpdate = true;
+
+          if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+          if (child.material.emissiveMap) child.material.emissiveMap.encoding = THREE.sRGBEncoding;
+
+          if (screenVideos[child.name]) {
+            clickableScreens[child.name] = child; child.layers.set(0);
+          } else if (screenImages[child.name]) {
+            clickableScreens[child.name] = child; child.layers.set(0);
+          } else if (child.name === "resume_screen") {
+            resumeScreen = child; child.layers.set(0);
+          } else if (boundingBoxNames.includes(child.name)) {
+            child.layers.set(1); walls.push(child);
+          }
         }
-        child.material.metalness = 0.8;
-        child.material.roughness = 0.2;
-        child.material.envMapIntensity = 1.2;
-        child.material.needsUpdate = true;
+      });
 
-        if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
-        if (child.material.emissiveMap) child.material.emissiveMap.encoding = THREE.sRGBEncoding;
-
-        if (screenVideos[child.name]) {
-          clickableScreens[child.name] = child; child.layers.set(0);
-        } else if (screenImages[child.name]) {
-          clickableScreens[child.name] = child; child.layers.set(0);
-        } else if (child.name === "resume_screen") {
-          resumeScreen = child; child.layers.set(0);
-        } else if (boundingBoxNames.includes(child.name)) {
-          child.layers.set(1); walls.push(child);
-        }
+      // Ready!
+      hideLoading();
+    },
+    (xhr) => {
+      // xhr.progress is per-GLB stream; combine gently with manager progress
+      if (xhr && xhr.lengthComputable) {
+        const pct = Math.min(95, Math.round((xhr.loaded / xhr.total) * 90));
+        setProgress(Math.max(pct, lastShownPct));
+      } else {
+        // fallback tick
+        setProgress(Math.min(90, lastShownPct + 1));
       }
-    });
-
-    const loading = document.getElementById('loading-overlay');
-    if (loading) loading.style.display = 'none';
-  }, undefined, (error) => {
-    console.error('Error loading model:', error);
-    const loading = document.getElementById('loading-overlay');
-    if (loading) loading.textContent = 'Failed to load. Please refresh.';
-  });
+    },
+    (error) => {
+      console.error('Error loading model:', error);
+      if (loadingPercentEl) loadingPercentEl.textContent = 'Load failed';
+      // Keep overlay visible with failure message for debugging
+    }
+  );
 });
 
+/* -------------------- Raycaster & interactions -------------------- */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
@@ -238,23 +277,7 @@ async function onUserInteraction(event) {
 window.addEventListener("click", onUserInteraction);
 window.addEventListener("touchstart", onUserInteraction, { passive: false });
 
-function animate() {
-  requestAnimationFrame(animate);
-
-  if (waterReflector.userData.shader) {
-    if (waterReflector.userData.shader.uniforms.rippleTime.value > 0) {
-      waterReflector.userData.shader.uniforms.rippleTime.value += 0.05;
-      if (waterReflector.userData.shader.uniforms.rippleTime.value > 3) {
-        waterReflector.userData.shader.uniforms.rippleTime.value = 0;
-      }
-    }
-  }
-
-  controls.update();
-  composer.render();
-}
-
-/* -------------------- Camera pan -------------------- */
+/* -------------------- Camera pan helper -------------------- */
 function panToScreen(target, callback) {
   const duration = 1000;
   const startPos = camera.position.clone();
@@ -333,7 +356,7 @@ addCloseEventListener("close-popup");
 addCloseEventListener("close-resume-popup");
 addCloseEventListener("close-overlay");
 
-/* -------------------- Postprocessing -------------------- */
+/* -------------------- Postprocessing (bloom delayed) -------------------- */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
@@ -346,24 +369,28 @@ requestAnimationFrame(() => {
   composer.addPass(bloomPass);
 });
 
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (waterReflector.userData.shader) {
+    if (waterReflector.userData.shader.uniforms.rippleTime.value > 0) {
+      waterReflector.userData.shader.uniforms.rippleTime.value += 0.05;
+      if (waterReflector.userData.shader.uniforms.rippleTime.value > 3) {
+        waterReflector.userData.shader.uniforms.rippleTime.value = 0;
+      }
+    }
+  }
+
+  controls.update();
+  composer.render();
+}
 animate();
 
 /* ================================
-/* ================================
-   📸 PHOTOGRAPHY GALLERY MODULE (non-blocking + path fallbacks)
+   📸 PHOTOGRAPHY GALLERY MODULE (lazy)
    ================================ */
 const GALLERY_COUNT = 36;
-
-// Try common base dirs (adjust order if you know the exact one)
-const GALLERY_BASE_DIRS = [
-  'public/photography/',
-  '/public/photography/',
-  './public/photography/',
-  'main/public/photography/',
-  '/photography/'
-];
-
-// If all your files are the same type, you can shorten this to ['.jpg']
+const GALLERY_DIR = 'public/photography/';
 const EXT_CANDIDATES = ['.jpg', '.jpeg', '.png', '.webp'];
 
 const galleryOverlay = document.getElementById("photo-gallery");
@@ -381,48 +408,30 @@ let currentIndex = 0;
 let galleryImages = [];
 let galleryReady = false;
 
-/* ---------- helpers ---------- */
-// Probe a single URL
-function probe(url) {
+// Try to resolve a URL by testing extensions in order
+function resolveUrl(base) {
   return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(url);
-    img.onerror = reject;
-    img.src = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now(); // bust caches during dev
+    let i = 0;
+    function tryNext() {
+      if (i >= EXT_CANDIDATES.length) return reject(new Error('No ext found'));
+      const url = `${GALLERY_DIR}${base}${EXT_CANDIDATES[i++]}`;
+      const img = new Image();
+      img.onload = () => resolve(url);
+      img.onerror = tryNext;
+      img.src = url;
+    }
+    tryNext();
   });
 }
 
-// Resolve an image by trying base dirs × extensions
-async function resolvePhoto(indexStr) {
-  for (const dir of GALLERY_BASE_DIRS) {
-    for (const ext of EXT_CANDIDATES) {
-      const url = `${dir}${indexStr}${ext}`;
-      try {
-        const ok = await probe(url);
-        return ok; // first that works
-      } catch (_) {}
-    }
-  }
-  return null;
-}
-
 async function buildGalleryList() {
-  const tasks = Array.from({ length: GALLERY_COUNT }, (_, k) => resolvePhoto(String(k + 1)));
+  const tasks = Array.from({ length: GALLERY_COUNT }, (_, k) => resolveUrl(String(k + 1)));
   const results = await Promise.allSettled(tasks);
-  galleryImages = results.map(r => (r.status === 'fulfilled' ? r.value : null)).filter(Boolean);
-
-  if (galleryImages.length === 0) {
-    console.warn('📸 No gallery images resolved. Check your paths. Tried dirs:', GALLERY_BASE_DIRS, 'exts:', EXT_CANDIDATES);
-  } else {
-    console.log(`📸 Resolved ${galleryImages.length}/${GALLERY_COUNT} images. Example:`, galleryImages.slice(0,3));
-  }
+  galleryImages = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
 }
 
 function buildGrid() {
-  if (!grid) {
-    console.warn('📸 #pg-grid not found; grid cannot be built.');
-    return;
-  }
+  if (!grid) return;
   const frag = document.createDocumentFragment();
   galleryImages.forEach((src, i) => {
     const img = document.createElement('img');
@@ -438,32 +447,21 @@ function buildGrid() {
 
 async function ensureGallery() {
   if (galleryReady) return;
-  try {
-    await buildGalleryList();
-    buildGrid();
-    galleryReady = true;
-  } catch (err) {
-    console.error('📸 Gallery init failed:', err);
-  }
+  await buildGalleryList();
+  buildGrid();
+  galleryReady = true;
 }
 
-/* ---------- UI controls ---------- */
-// Show overlay immediately; load images in the background
 async function openGallery() {
   if (typeof controls !== 'undefined' && controls) controls.enabled = false;
-  if (!galleryOverlay) {
-    console.error('📸 #photo-gallery not found in DOM.');
-    return;
-  }
+  if (!galleryOverlay || !gridView) return;
 
-  // Show overlay & grid now (no await)
+  await ensureGallery();
+
   galleryOverlay.classList.add('pg-open');
-  galleryOverlay.setAttribute('aria-hidden', 'false');
-  if (gridView) gridView.classList.add('pg-show');
+  gridView.classList.add('pg-show');
   if (lightbox) lightbox.classList.remove('pg-show');
-
-  // Build grid lazy (doesn't block opening)
-  ensureGallery();
+  galleryOverlay.setAttribute('aria-hidden', 'false');
 }
 
 function closeGallery() {
@@ -476,7 +474,6 @@ function closeGallery() {
   if (typeof controls !== 'undefined' && controls) controls.enabled = true;
 }
 
-// Lightbox
 function openLightbox(i) {
   currentIndex = i;
   setLightboxImage();
@@ -486,7 +483,6 @@ function openLightbox(i) {
     lightbox.setAttribute('aria-hidden','false');
   }
 }
-
 function backToGrid() {
   if (lightbox) {
     lightbox.classList.remove('pg-show');
@@ -496,21 +492,17 @@ function backToGrid() {
     galleryOverlay.classList.remove('pg-image-open');
   }
 }
-
 function setLightboxImage() {
   if (!lightboxImg) return;
   lightboxImg.src = galleryImages[currentIndex];
   lightboxImg.alt = `Photo ${currentIndex + 1}`;
 }
-function prev() { if (!galleryImages.length) return; currentIndex = (currentIndex - 1 + galleryImages.length) % galleryImages.length; setLightboxImage(); }
-function next() { if (!galleryImages.length) return; currentIndex = (currentIndex + 1) % galleryImages.length; setLightboxImage(); }
+function prev() { currentIndex = (currentIndex - 1 + galleryImages.length) % galleryImages.length; setLightboxImage(); }
+function next() { currentIndex = (currentIndex + 1) % galleryImages.length; setLightboxImage(); }
 
-/* ---------- events ---------- */
 if (closeGridBtn) closeGridBtn.addEventListener('click', closeGallery);
 if (prevBtn) prevBtn.addEventListener('click', prev);
 if (nextBtn) nextBtn.addEventListener('click', next);
-
-// Back arrow
 if (backBtn) {
   backBtn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); backToGrid(); });
 }
@@ -523,8 +515,6 @@ document.addEventListener('click', (e) => {
     backToGrid();
   }
 });
-
-// Click on scrim closes overlay
 if (galleryOverlay) {
   galleryOverlay.addEventListener('click', (e) => {
     const el = e.target;
@@ -535,7 +525,6 @@ if (galleryOverlay) {
   });
 }
 
-// Keyboard
 window.addEventListener('keydown', (e) => {
   if (!galleryOverlay || !galleryOverlay.classList.contains('pg-open')) return;
   if (e.key === 'Escape') {
@@ -548,7 +537,6 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Touch swipe
 let sx = 0, sy = 0;
 if (lightbox) {
   lightbox.addEventListener('touchstart', (e)=>{ const t = e.touches[0]; sx = t.clientX; sy = t.clientY; }, {passive:true});
