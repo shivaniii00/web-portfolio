@@ -14,6 +14,36 @@ canvas {
     z-index: 0;
 }
 
+/* ---------- Loading overlay ---------- */
+#loading-overlay {
+  position: fixed; inset: 0;
+  display: grid; place-items: center;
+  background: #000;
+  color: #9ff;
+  z-index: 1500;
+  opacity: 1;
+  transition: opacity .35s ease;
+}
+#loading-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.loading-wrap { width: min(420px, 90vw); text-align: center; }
+.loading-title { font: 600 18px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial; margin-bottom: 12px; }
+.loading-bar {
+  height: 10px; border-radius: 999px; overflow: hidden;
+  background: rgba(0,255,255,0.15);
+  box-shadow: 0 0 24px rgba(0,255,255,0.25) inset;
+}
+.loading-bar-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #07d, #0ff);
+  box-shadow: 0 0 14px rgba(0,255,255,0.7);
+  transition: width .18s ease;
+}
+.loading-percent { margin-top: 10px; font-weight: 600; letter-spacing: .3px; }
+.loading-hint { margin-top: 6px; font-size: 12px; color: #7fd; opacity: .8; }
+
 /* Popup containers for video, resume, and images */
 #video-popup, #resume-popup, #image-popup {
     display: none;
@@ -98,11 +128,11 @@ canvas {
 
 /* Grid view fills viewport and scrolls, grid stays visible under lightbox */
 .pg-gridView {
-  position: fixed; /* important so it never cuts off */
+  position: fixed;
   inset: 0;
   box-sizing: border-box;
-  padding: 72px 28px 28px; /* room for title/close */
-  overflow: auto;          /* scroll within viewport */
+  padding: 72px 28px 28px;
+  overflow: auto;
   background: rgba(0,0,0,0.85);
 }
 
@@ -114,48 +144,4 @@ canvas {
 }
 
 .pg-closeGrid {
-  position: fixed; top: 16px; right: 16px;
-  font-size: 28px; line-height: 1;
-  border: 0; background: transparent; color: #fff; cursor: pointer;
-}
-
-/* Responsive auto-fill grid that never overflows horizontally */
-.pg-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.pg-grid img {
-  width: 100%;
-  aspect-ratio: 1 / 1;     /* squares that adapt to width */
-  object-fit: cover;
-  display: block;
-  cursor: zoom-in;
-  border-radius: 6px;
-  transition: transform 0.15s ease;
-}
-.pg-grid img:hover { transform: scale(1.03); }
-
-/* Lightbox overlay ABOVE grid, fully hides when not .pg-show */
-.pg-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-
-  /* hide when closed */
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-
-  transition: opacity .15s ease, visibility 0s linear .15s;
-}
-.pg-lightbox.pg-show {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transition: opacity .15s ease;
-}
-
-.pg-lightbox-scrim {
-  position: absolute; inse
+  posit
