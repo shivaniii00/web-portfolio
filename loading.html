@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Loading…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Warm up origins & modules used in main.html -->
+  <link rel="preconnect" href="https://unpkg.com" crossorigin />
+  <link rel="modulepreload" href="https://unpkg.com/three@0.161.0/build/three.module.js">
+  <link rel="modulepreload" href="https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js">
+  <link rel="modulepreload" href="https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js">
+  <link rel="modulepreload" href="https://unpkg.com/three@0.161.0/examples/jsm/postprocessing/EffectComposer.js">
+  <link rel="modulepreload" href="https://unpkg.com/three@0.161.0/examples/jsm/postprocessing/RenderPass.js">
+  <link rel="modulepreload" href="https://unpkg.com/three@0.161.0/examples/jsm/postprocessing/UnrealBloomPass.js">
+  <link rel="modulepreload" href="https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js">
+  <link rel="modulepreload" href="https://unpkg.com/three@0.161.0/examples/jsm/postprocessing/ShaderPass.js">
+
+  <!-- Warm up your own assets -->
+  <link rel="preload" href="style.css" as="style">
+  <link rel="modulepreload" href="main.js">
+
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; height: 100vh; display: grid; place-items: center;
+      background: #000; color: #9ff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+    .wrap { width: min(520px, 92vw); text-align: center; }
+    .title { font-weight: 700; font-size: 20px; margin-bottom: 12px; letter-spacing: .3px; }
+    .bar { height: 12px; background: rgba(0,255,255,.15); border-radius: 999px; overflow: hidden;
+           box-shadow: inset 0 0 24px rgba(0,255,255,.25); }
+    .fill { height: 100%; width: 0%; background: linear-gradient(90deg,#07d,#0ff); box-shadow: 0 0 14px rgba(0,255,255,.6);
+            transition: width .15s ease; }
+    .pct { margin-top: 10px; font-weight: 700; }
+    .hint { margin-top: 6px; font-size: 12px; color: #7fd; opacity: .85; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">Preparing your experience…</div>
+    <div class="bar"><div id="fill" class="fill"></div></div>
+    <div id="pct" class="pct">0%</div>
+    <div class="hint" id="hint">Optimizing assets…</div>
+  </div>
+
+  <script>
+  (function() {
+    // 🔧 Keep this in sync with main.js
+    const MODEL_URL = "public/models/cyberpunk_station.glb";
+
+    // Optional: include more assets here (images, HDRs, audio) for even smoother main load.
+    const EXTRA_ASSETS = [
+      // 'public/sounds/ambience.wav',
+      // 'public/sounds/beep.mp3',
+      // 'public/sounds/woosh.wav',
+    ];
+
+    const fill = document.getElementById('fill');
+    const pctEl = document.getElementById('pct');
+    const hintEl = document.getElementById('hint');
+
+    // Progress accounting (combined across tasks)
+    let totalBytesKnown = 0;
+    let loadedBytes = 0;
+
+    /** Update UI safely */
+    function setProgress(p) {
+      const clamped = Math.max(0, Math.min(100, p|0));
+      fill.style.width = clamped + '%';
+      pctEl.textContent = clamped + '%';
+    }
+
+    /** Stream + cache one asset, with progress (if content-length is present) */
+    async function streamAndCache(url, weightHint = 2_000_000) {
+      try {
+        const resp = await fetch(url, { cache: 'reload' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ' for ' + url);
+
+        const len = Number(resp.headers.get('content-length')) || weightHint;
+        totalBytesKnown += len;
+
+        // If there is no body (older browsers), just read as blob
+        if (!resp.body) {
+          await resp.blob();
+          loadedBytes += len;
+          setProgress(Math.round( (loadedBytes / totalBytesKnown) * 100 ));
+          // put into Cache storage for main.html to use instantly
+          if ('caches' in window) {
+            const cache = await caches.open('portfolio-preload');
+            await cache.put(url, resp.clone());
+          }
+          return;
+        }
+
+        const reader = resp.body.getReader();
+        const chunks = [];
+        let received = 0;
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.byteLength;
+          loadedBytes += value.byteLength;
+          setProgress(Math.round( (loadedBytes / totalBytesKnown) * 100 ));
+        }
+        const blob = new Blob(chunks);
+        // Cache the fully-read response
+        if ('caches' in window) {
+          const cache = await caches.open('portfolio-preload');
+          await cache.put(url, new Response(blob, { headers: { 'Content-Type': resp.headers.get('Content-Type') || 'application/octet-stream' }}));
+        }
+      } catch (err) {
+        console.warn('Preload failed for', url, err);
+        // still advance a bit so the UI doesn't stall
+        loadedBytes += Math.floor(weightHint * 0.7);
+        totalBytesKnown += weightHint;
+        setProgress(Math.round( (loadedBytes / totalBytesKnown) * 100 ));
+      }
+    }
+
+    async function run() {
+      setProgress(3);
+      hintEl.textContent = 'Warming up modules…';
+
+      // Briefly yield so the bar paints before heavy work
+      await new Promise(r => setTimeout(r, 30));
+
+      // Start streaming the big GLB first
+      hintEl.textContent = 'Caching 3D scene…';
+      await streamAndCache(MODEL_URL, /*weightHint*/ 12_000_000);
+
+      // Preload extras in parallel (don’t block redirect if you prefer)
+      hintEl.textContent = 'Priming media…';
+      await Promise.all(EXTRA_ASSETS.map(a => streamAndCache(a, 1_000_000)));
+
+      // Final polish & go
+      setProgress(100);
+      hintEl.textContent = 'Launching…';
+      // tiny delay so users see 100%
+      setTimeout(() => { window.location.replace('main.html'); }, 150);
+    }
+
+    run();
+  })();
+  </script>
+</body>
+</html>
