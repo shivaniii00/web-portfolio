@@ -58,11 +58,7 @@ canvas {
     align-items: center;
     z-index: 1000;
 }
-
-.overlay img {
-    max-width: 80%;
-    max-height: 80%;
-}
+.overlay img { max-width: 80%; max-height: 80%; }
 
 /* Close button for overlay */
 #close-overlay {
@@ -185,9 +181,7 @@ canvas {
 }
 
 /* ensure controls are above scrim */
-.pg-backToGrid, .pg-prev, .pg-next {
-  z-index: 2;
-}
+.pg-backToGrid, .pg-prev, .pg-next { z-index: 2; }
 
 /* Controls on top of the image */
 .pg-prev, .pg-next, .pg-backToGrid {
@@ -211,8 +205,6 @@ canvas {
 }
 
 /* Hide the grid close (×) when a photo overlay is open */
-.pg-overlay.pg-image-open .pg-closeGrid {
-  display: none;
-}
+.pg-overlay.pg-image-open .pg-closeGrid { display: none; }
 
 /* --- End Photography Gallery --- */
