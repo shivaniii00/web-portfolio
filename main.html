@@ -7,7 +7,7 @@
 
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Three.js import map -->
+  <!-- Single import map (avoid duplicates to prevent conflicts) -->
   <script type="importmap">
   {
     "imports": {
@@ -23,11 +23,11 @@
   }
   </script>
 
-  <!-- Defer so DOM paints instantly -->
+  <!-- Load your app AFTER DOM parse -->
   <script src="main.js" type="module" defer></script>
 </head>
 <body>
-  <!-- Loading screen (hidden after model loads) -->
+  <!-- Loading screen (removed once GLTF loads) -->
   <div id="loading-overlay" style="
     position:fixed; inset:0; display:grid; place-items:center;
     background:#000; color:#9ff; font:600 18px/1.2 system-ui;
@@ -51,7 +51,7 @@
     <iframe id="resume-viewer" src="Shivani_Resume_2025.pdf" title="Resume"></iframe>
   </div>
 
-  <!-- Simple single-image overlay used elsewhere -->
+  <!-- Single-image overlay used elsewhere -->
   <div id="image-overlay" class="overlay">
     <button id="close-overlay">Close</button>
     <img id="overlay-image" alt="Overlay Image" />
@@ -59,14 +59,12 @@
 
   <!-- 📸 Photography Gallery (grid + on-top lightbox) -->
   <div id="photo-gallery" class="pg-overlay" aria-hidden="true">
-    <!-- Grid (visible while gallery is open) -->
     <div class="pg-gridView" role="dialog" aria-modal="true" aria-label="Photography Gallery">
       <button id="pg-closeGrid" class="pg-closeGrid" aria-label="Close gallery grid">×</button>
       <h2 class="pg-title">Photography</h2>
       <div id="pg-grid" class="pg-grid" aria-live="polite"></div>
     </div>
 
-    <!-- Lightbox overlay above grid -->
     <div class="pg-lightbox" id="pg-lightbox" aria-hidden="true">
       <div class="pg-lightbox-scrim"></div>
       <div class="pg-lightbox-inner">
