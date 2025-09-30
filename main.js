@@ -8,6 +8,9 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+/* 🔽 NEW: decoders for Draco + Meshopt */
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 
 /* -------------------- quick asset config -------------------- */
 const ASSETS = {
@@ -147,17 +150,25 @@ waterReflector.material.onBeforeCompile = (shader) => {
 scene.add(waterReflector);
 
 /* -------------------- LoadingManager + GLTF -------------------- */
-// Use a LoadingManager so textures referenced by the GLB contribute to progress.
 const manager = new THREE.LoadingManager();
 manager.onStart = () => { setProgress(5); };
 manager.onProgress = (url, itemsLoaded, itemsTotal) => {
-  // GLTF can reference textures; this tracks those too.
-  const pct = Math.round((itemsLoaded / Math.max(itemsTotal, 1)) * 90); // reserve 10% for scene prep
+  const pct = Math.round((itemsLoaded / Math.max(itemsTotal, 1)) * 90);
   setProgress(Math.max(pct, lastShownPct));
 };
 manager.onError = (url) => { console.warn('Failed to load:', url); };
 
 const loader = new GLTFLoader(manager);
+
+/* 🔽 NEW: wire Draco + Meshopt decoders so compressed GLBs load */
+const dracoLoader = new DRACOLoader();
+// Use Google's hosted Draco decoders (no files to host yourself).
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+dracoLoader.preload();
+loader.setDRACOLoader(dracoLoader);
+
+// Meshopt (harmless if not used; required if your GLB has EXT_meshopt_compression)
+loader.setMeshoptDecoder(MeshoptDecoder);
 
 let clickableScreens = {};
 let resumeScreen = null;
@@ -212,19 +223,16 @@ requestAnimationFrame(() => {
       hideLoading();
     },
     (xhr) => {
-      // xhr.progress is per-GLB stream; combine gently with manager progress
       if (xhr && xhr.lengthComputable) {
         const pct = Math.min(95, Math.round((xhr.loaded / xhr.total) * 90));
         setProgress(Math.max(pct, lastShownPct));
       } else {
-        // fallback tick
         setProgress(Math.min(90, lastShownPct + 1));
       }
     },
     (error) => {
       console.error('Error loading model:', error);
       if (loadingPercentEl) loadingPercentEl.textContent = 'Load failed';
-      // Keep overlay visible with failure message for debugging
     }
   );
 });
@@ -427,18 +435,17 @@ function buildGrid() {
     img.alt = `Photo ${i}`;
     img.loading = 'lazy';
     img.decoding = 'async';
-    img.fetchPriority = 'low';           // thumbs = background priority
-    img.setAttribute('data-lazy', '');   // for blur style until load
-    img.dataset.index = i;               // keep index for click open
-    img.dataset.full = getFull(i);       // full-res URL for overlay
-    img.src = getThumb(i);               // try thumb first
+    img.fetchPriority = 'low';
+    img.setAttribute('data-lazy', '');
+    img.dataset.index = i;
+    img.dataset.full = getFull(i);
+    img.src = getThumb(i);
 
     img.addEventListener('load', () => {
-      img.setAttribute('data-loaded', '1'); // remove blur
+      img.setAttribute('data-loaded', '1');
       img.removeAttribute('data-lazy');
     });
 
-    // If thumb 404s, gracefully show full-res in grid for that item only
     img.addEventListener('error', () => {
       img.src = img.dataset.full;
     });
@@ -454,9 +461,7 @@ function buildGrid() {
 /** IntersectionObserver to avoid loading thumbs until scrolled into view */
 function hydrateLazyImages() {
   if (!('IntersectionObserver' in window) || !gridView) {
-    // load immediately if IO not supported
     grid.querySelectorAll('img[data-lazy]').forEach(img => {
-      // src is already set – nothing else to do
       img.removeAttribute('data-lazy');
     });
     return;
@@ -466,7 +471,6 @@ function hydrateLazyImages() {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
       const img = entry.target;
-      // src already set; just unmark lazy so CSS blur can drop on load
       img.removeAttribute('data-lazy');
       obs.unobserve(img);
     }
@@ -506,13 +510,13 @@ function closeGallery() {
 /** Lightbox — progressive: show thumb first, then swap to full when it finishes */
 function openLightbox(i) {
   currentIndex = i;
-  setLightboxImage(true); // priority for initial display
+  setLightboxImage(true);
   galleryOverlay && galleryOverlay.classList.add('pg-image-open');
   if (lightbox) {
     lightbox.classList.add('pg-show');
     lightbox.setAttribute('aria-hidden','false');
   }
-  prefetchNeighbors(); // warm next/prev full-res
+  prefetchNeighbors();
 }
 
 function backToGrid() {
@@ -523,35 +527,29 @@ function backToGrid() {
   galleryOverlay && galleryOverlay.classList.remove('pg-image-open');
 }
 
-/** Load current image:
- *  1) Set thumb immediately (fast)
- *  2) Load full in memory; swap when ready (no flash)
- */
+/** Load current image progressively */
 function setLightboxImage(priority = false) {
   if (!lightboxImg) return;
   const idx = currentIndex;
   const thumbURL = getThumb(idx);
   const fullURL  = getFull(idx);
 
-  // show thumb instantly
   lightboxImg.src = thumbURL;
   lightboxImg.alt = `Photo ${idx}`;
   if (priority) lightboxImg.fetchPriority = 'high';
 
-  // now stream full, then swap
   const hi = new Image();
   hi.decoding = 'async';
   hi.loading = 'eager';
   hi.src = fullURL;
   hi.onload = () => {
-    // only swap if we're still looking at the same index
     if (currentIndex === idx) {
       lightboxImg.src = fullURL;
     }
   };
 }
 
-/** Preload neighbors (full-res) for snappy nav */
+/** Preload neighbors (full-res) */
 function prefetchNeighbors() {
   const prevIdx = (currentIndex - 1 + GALLERY_COUNT) % GALLERY_COUNT || GALLERY_COUNT;
   const nextIdx = (currentIndex % GALLERY_COUNT) + 1;
