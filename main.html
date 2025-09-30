@@ -21,12 +21,12 @@
       }
     }
   </script>
-<div id="loading-screen">
-  <div id="progress-bar-container">
-    <div id="progress-bar"></div>
-    <p id="progress-text">Loading... 0%</p>
+  <div id="loading-screen">
+    <div id="progress-bar-container">
+      <div id="progress-bar"></div>
+      <p id="progress-text">Loading... 0%</p>
+    </div>
   </div>
-</div>
 
 </head>
 <body>
@@ -48,6 +48,28 @@
     <img id="overlay-image" src="" alt="Overlay Image">
     <button id="close-overlay">X</button>
   </div>
+
+<!-- 📸 Photography Gallery Overlay -->
+<div id="photo-gallery" class="pg-overlay" aria-hidden="true">
+  <!-- Grid (always visible while gallery is open) -->
+  <div class="pg-gridView" role="dialog" aria-modal="true" aria-label="Photography Gallery">
+    <button id="pg-closeGrid" class="pg-closeGrid" aria-label="Close gallery grid">×</button>
+    <h2 class="pg-title">Photography</h2>
+    <div id="pg-grid" class="pg-grid" aria-live="polite"></div>
+  </div>
+
+  <!-- Lightbox overlay (sits above grid) -->
+  <div class="pg-lightbox" id="pg-lightbox" aria-hidden="true">
+    <div class="pg-lightbox-scrim"></div>
+    <div class="pg-lightbox-inner">
+      <button id="pg-backToGrid" class="pg-backToGrid" aria-label="Back to grid">←</button>
+      <button id="pg-prev" class="pg-prev" aria-label="Previous photo">❮</button>
+      <img id="pg-lightboxImg" alt="" />
+      <button id="pg-next" class="pg-next" aria-label="Next photo">❯</button>
+    </div>
+  </div>
+</div>
+
 
   <!-- ✅ Test if Three.js loads correctly -->
   <script type="module">
