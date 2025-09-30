@@ -1,4 +1,7 @@
 console.log("✅ main.js is running!");
+console.log("THREE rev:", THREE.REVISION); // should print 161
+console.log("DRACOLoader present?", typeof DRACOLoader === 'function');
+
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -625,3 +628,4 @@ if (lightbox) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
   }, {passive:true});
 }
+
