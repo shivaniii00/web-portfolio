@@ -1,4 +1,4 @@
-console.log("✅ main.js is running!");
+Fconsole.log("✅ main.js is running!");
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -352,7 +352,7 @@ animate();
    📸 PHOTOGRAPHY GALLERY MODULE (lazy)
    ================================ */
 const GALLERY_COUNT = 36;
-const GALLERY_DIR = 'public/photography/';
+const GALLERY_DIR = '/public/photography/';
 const EXT_CANDIDATES = ['.jpg', '.jpeg', '.png', '.webp'];
 
 const galleryOverlay = document.getElementById("photo-gallery");
@@ -511,3 +511,4 @@ if (lightbox) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
   }, {passive:true});
 }
+
