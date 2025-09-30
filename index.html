@@ -4,11 +4,7 @@
   <meta charset="utf-8" />
   <title>Portfolio — Enter</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- Light hints (safe even if cached paths differ) -->
-  <link rel="prefetch" href="main.html" as="document" />
   <link rel="preconnect" href="https://unpkg.com" crossorigin />
-
   <link rel="stylesheet" href="style.css" />
   <style>
     body { display:grid; place-items:center; height:100vh; overflow:hidden; background:#000; color:#fff; }
@@ -30,7 +26,8 @@
 
   <script>
     document.getElementById('enter-btn').addEventListener('click', () => {
-      window.location.href = 'main.html'; // normal navigation (fastest)
+      // 🚀 go to the bridge
+      window.location.href = 'loading.html';
     });
   </script>
 </body>
