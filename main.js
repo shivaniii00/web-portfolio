@@ -403,7 +403,7 @@ const GALLERY_COUNT = 36;
 const FULL_DIR  = 'public/photography/full/';   // where the originals are
 const THUMB_DIR = 'public/photography/thumbs/'; // where the compressed thumbs are
 const FULL_EXT  = '.jpg';   // originals extension ('.jpg' | '.png' | '.webp')
-const THUMB_EXT = '.webp';  // thumbs extension   (use .webp if you can)
+const THUMB_EXT = '.webp';  // thumbs extension  
 
 /** DOM hooks */
 const galleryOverlay = document.getElementById("photo-gallery");
@@ -625,5 +625,6 @@ if (lightbox) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
   }, {passive:true});
 }
+
 
 
