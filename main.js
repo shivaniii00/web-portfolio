@@ -349,10 +349,21 @@ requestAnimationFrame(() => {
 animate();
 
 /* ================================
-   📸 PHOTOGRAPHY GALLERY MODULE (lazy)
+/* ================================
+   📸 PHOTOGRAPHY GALLERY MODULE (non-blocking + path fallbacks)
    ================================ */
 const GALLERY_COUNT = 36;
-const GALLERY_DIR = '/public/photography/';
+
+// Try common base dirs (adjust order if you know the exact one)
+const GALLERY_BASE_DIRS = [
+  'public/photography/',
+  '/public/photography/',
+  './public/photography/',
+  'main/public/photography/',
+  '/photography/'
+];
+
+// If all your files are the same type, you can shorten this to ['.jpg']
 const EXT_CANDIDATES = ['.jpg', '.jpeg', '.png', '.webp'];
 
 const galleryOverlay = document.getElementById("photo-gallery");
@@ -370,29 +381,48 @@ let currentIndex = 0;
 let galleryImages = [];
 let galleryReady = false;
 
-function resolveUrl(base) {
+/* ---------- helpers ---------- */
+// Probe a single URL
+function probe(url) {
   return new Promise((resolve, reject) => {
-    let i = 0;
-    function tryNext() {
-      if (i >= EXT_CANDIDATES.length) return reject(new Error('No ext found'));
-      const url = `${GALLERY_DIR}${base}${EXT_CANDIDATES[i++]}`;
-      const img = new Image();
-      img.onload = () => resolve(url);
-      img.onerror = tryNext;
-      img.src = url;
-    }
-    tryNext();
+    const img = new Image();
+    img.onload = () => resolve(url);
+    img.onerror = reject;
+    img.src = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now(); // bust caches during dev
   });
 }
 
+// Resolve an image by trying base dirs × extensions
+async function resolvePhoto(indexStr) {
+  for (const dir of GALLERY_BASE_DIRS) {
+    for (const ext of EXT_CANDIDATES) {
+      const url = `${dir}${indexStr}${ext}`;
+      try {
+        const ok = await probe(url);
+        return ok; // first that works
+      } catch (_) {}
+    }
+  }
+  return null;
+}
+
 async function buildGalleryList() {
-  const tasks = Array.from({ length: GALLERY_COUNT }, (_, k) => resolveUrl(String(k + 1)));
+  const tasks = Array.from({ length: GALLERY_COUNT }, (_, k) => resolvePhoto(String(k + 1)));
   const results = await Promise.allSettled(tasks);
-  galleryImages = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
+  galleryImages = results.map(r => (r.status === 'fulfilled' ? r.value : null)).filter(Boolean);
+
+  if (galleryImages.length === 0) {
+    console.warn('📸 No gallery images resolved. Check your paths. Tried dirs:', GALLERY_BASE_DIRS, 'exts:', EXT_CANDIDATES);
+  } else {
+    console.log(`📸 Resolved ${galleryImages.length}/${GALLERY_COUNT} images. Example:`, galleryImages.slice(0,3));
+  }
 }
 
 function buildGrid() {
-  if (!grid) return;
+  if (!grid) {
+    console.warn('📸 #pg-grid not found; grid cannot be built.');
+    return;
+  }
   const frag = document.createDocumentFragment();
   galleryImages.forEach((src, i) => {
     const img = document.createElement('img');
@@ -408,21 +438,32 @@ function buildGrid() {
 
 async function ensureGallery() {
   if (galleryReady) return;
-  await buildGalleryList();
-  buildGrid();
-  galleryReady = true;
+  try {
+    await buildGalleryList();
+    buildGrid();
+    galleryReady = true;
+  } catch (err) {
+    console.error('📸 Gallery init failed:', err);
+  }
 }
 
+/* ---------- UI controls ---------- */
+// Show overlay immediately; load images in the background
 async function openGallery() {
   if (typeof controls !== 'undefined' && controls) controls.enabled = false;
-  if (!galleryOverlay || !gridView) return;
+  if (!galleryOverlay) {
+    console.error('📸 #photo-gallery not found in DOM.');
+    return;
+  }
 
-  await ensureGallery();
-
+  // Show overlay & grid now (no await)
   galleryOverlay.classList.add('pg-open');
-  gridView.classList.add('pg-show');
-  if (lightbox) lightbox.classList.remove('pg-show');
   galleryOverlay.setAttribute('aria-hidden', 'false');
+  if (gridView) gridView.classList.add('pg-show');
+  if (lightbox) lightbox.classList.remove('pg-show');
+
+  // Build grid lazy (doesn't block opening)
+  ensureGallery();
 }
 
 function closeGallery() {
@@ -435,6 +476,7 @@ function closeGallery() {
   if (typeof controls !== 'undefined' && controls) controls.enabled = true;
 }
 
+// Lightbox
 function openLightbox(i) {
   currentIndex = i;
   setLightboxImage();
@@ -460,13 +502,15 @@ function setLightboxImage() {
   lightboxImg.src = galleryImages[currentIndex];
   lightboxImg.alt = `Photo ${currentIndex + 1}`;
 }
-function prev() { currentIndex = (currentIndex - 1 + galleryImages.length) % galleryImages.length; setLightboxImage(); }
-function next() { currentIndex = (currentIndex + 1) % galleryImages.length; setLightboxImage(); }
+function prev() { if (!galleryImages.length) return; currentIndex = (currentIndex - 1 + galleryImages.length) % galleryImages.length; setLightboxImage(); }
+function next() { if (!galleryImages.length) return; currentIndex = (currentIndex + 1) % galleryImages.length; setLightboxImage(); }
 
+/* ---------- events ---------- */
 if (closeGridBtn) closeGridBtn.addEventListener('click', closeGallery);
 if (prevBtn) prevBtn.addEventListener('click', prev);
 if (nextBtn) nextBtn.addEventListener('click', next);
 
+// Back arrow
 if (backBtn) {
   backBtn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); backToGrid(); });
 }
@@ -479,6 +523,8 @@ document.addEventListener('click', (e) => {
     backToGrid();
   }
 });
+
+// Click on scrim closes overlay
 if (galleryOverlay) {
   galleryOverlay.addEventListener('click', (e) => {
     const el = e.target;
@@ -489,6 +535,7 @@ if (galleryOverlay) {
   });
 }
 
+// Keyboard
 window.addEventListener('keydown', (e) => {
   if (!galleryOverlay || !galleryOverlay.classList.contains('pg-open')) return;
   if (e.key === 'Escape') {
@@ -501,6 +548,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// Touch swipe
 let sx = 0, sy = 0;
 if (lightbox) {
   lightbox.addEventListener('touchstart', (e)=>{ const t = e.touches[0]; sx = t.clientX; sy = t.clientY; }, {passive:true});
@@ -511,4 +559,3 @@ if (lightbox) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
   }, {passive:true});
 }
-
