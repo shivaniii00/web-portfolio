@@ -5,10 +5,13 @@
   <title>Portfolio — Enter</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Prefetch the next page & critical files -->
+  <!-- Hint the browser about what's coming next -->
   <link rel="prefetch" href="main.html" as="document" />
-  <link rel="preload" href="public/models/cyberpunk_station.glb" as="fetch" crossorigin>
-  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="preload" href="public/models/cyberpunk_station.glb" as="fetch" />
+  <link rel="preload" href="public/sounds/ambience.wav" as="audio" />
+  <link rel="preload" href="public/sounds/woosh.wav" as="audio" />
+  <link rel="preload" href="public/sounds/beep.mp3" as="audio" />
+  <link rel="preconnect" href="https://unpkg.com" crossorigin />
 
   <link rel="stylesheet" href="style.css" />
   <style>
@@ -31,8 +34,8 @@
   </div>
 
   <script>
+    // Normal navigation is faster than fetch+swap SPA
     document.getElementById('enter-btn').addEventListener('click', () => {
-      // Normal navigation is faster than fetch+swap
       window.location.href = 'main.html';
     });
   </script>
