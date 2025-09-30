@@ -236,4 +236,15 @@ canvas {
 /* Hide the grid close (×) when a photo overlay is open */
 .pg-overlay.pg-image-open .pg-closeGrid { display: none; }
 
+/* Subtle blur until thumb finishes loading */
+.pg-grid img[data-lazy],
+.pg-grid img:not([data-loaded="1"]) {
+  filter: blur(8px);
+  background: #111;
+  transition: filter .25s ease;
+}
+.pg-grid img[data-loaded="1"] {
+  filter: none;
+}
+
 /* --- End Photography Gallery --- */
