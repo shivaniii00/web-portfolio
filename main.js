@@ -9,6 +9,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 
+/* -------------------- Three.js scene -------------------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
@@ -17,27 +18,37 @@ camera.position.set(0, 0, 10);
 
 const renderer = new THREE.WebGLRenderer({
   canvas: document.getElementById("three-canvas"),
-  antialias: false, // ✅ Disable antialiasing for performance
-  powerPreference: "high-performance", // ✅ Force high-performance GPU usage
+  antialias: false,
+  powerPreference: "high-performance",
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // ✅ Limit pixel density
+
+// Start slightly lower DPR, bump later
+const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+const startDPR = isMobile ? 1.25 : 1.5;
+renderer.setPixelRatio(startDPR);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
+
+// Gentle bump a bit later (optional)
+setTimeout(() => {
+  const bump = isMobile ? 1.5 : 2;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, bump));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}, 2000);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.maxPolarAngle = Math.PI / 2.2;
 controls.minPolarAngle = Math.PI / 3;
-// Keep zoom & pan enabled per your existing setup
 controls.enableZoom = true;
 controls.enablePan = true;
 controls.touchZoomSpeed = 0.5;
 controls.touchRotateSpeed = 1.0;
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Lower ambient for better glow effect
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
 scene.add(ambientLight);
 
 // Spotlight for contrast
@@ -47,46 +58,53 @@ spotlight.angle = Math.PI / 6;
 spotlight.penumbra = 0.5;
 scene.add(spotlight);
 
-// 🎵 Audio setup
+// Audio setup (lazy loaded)
 const listener = new THREE.AudioListener();
 camera.add(listener);
-
 const audioLoader = new THREE.AudioLoader();
 
-// ✅ Ambient Sound (Plays in loop)
 const ambienceSound = new THREE.Audio(listener);
-audioLoader.load('public/sounds/ambience.wav', (buffer) => {
-  ambienceSound.setBuffer(buffer);
-  ambienceSound.setLoop(true);
-  ambienceSound.setVolume(0.3);
-  // Will start on first interaction automatically in most browsers, but we call play() where allowed
-  ambienceSound.play();
-});
-
-// ✅ Click Sound (Plays on interaction)
 const clickSound = new THREE.Audio(listener);
-audioLoader.load('public/sounds/beep.mp3', (buffer) => {
-  clickSound.setBuffer(buffer);
-  clickSound.setLoop(false);
-  clickSound.setVolume(0.5);
-});
-
-// ✅ Woosh Sound (Plays when a pop-up opens)
 const wooshSound = new THREE.Audio(listener);
-audioLoader.load('public/sounds/woosh.wav', (buffer) => {
-  wooshSound.setBuffer(buffer);
-  wooshSound.setLoop(false);
-  wooshSound.setVolume(0.7);
-});
 
-// Interactive reflective water surface with ripples
+// Lazy-load helper
+function loadSoundOnce(path, target, { loop=false, volume=0.5 } = {}) {
+  return new Promise((resolve, reject) => {
+    if (target.isAudio && target.buffer) return resolve();
+    audioLoader.load(path, (buffer) => {
+      target.setBuffer(buffer);
+      target.setLoop(loop);
+      target.setVolume(volume);
+      resolve();
+    }, undefined, reject);
+  });
+}
+
+// Start ambience after first user gesture (avoids autoplay block)
+function setupAmbienceOnFirstGesture() {
+  const start = async () => {
+    try {
+      await loadSoundOnce('public/sounds/ambience.wav', ambienceSound, { loop:true, volume:0.3 });
+      if (!ambienceSound.isPlaying) ambienceSound.play();
+    } catch {}
+    window.removeEventListener('pointerdown', start, { capture: true });
+  };
+  window.addEventListener('pointerdown', start, { capture: true, passive: true });
+}
+setupAmbienceOnFirstGesture();
+
+/* -------------------- Reflective water (cheaper RT size) -------------------- */
 const waterGeometry = new THREE.PlaneGeometry(100, 100);
+const scale = 0.5; // reduce reflection buffer size
+const texW = Math.floor(window.innerWidth * window.devicePixelRatio * scale);
+const texH = Math.floor(window.innerHeight * window.devicePixelRatio * scale);
+
 const waterReflector = new Reflector(waterGeometry, {
   clipBias: 0.003,
-  textureWidth: window.innerWidth * window.devicePixelRatio,
-  textureHeight: window.innerHeight * window.devicePixelRatio,
+  textureWidth: texW,
+  textureHeight: texH,
   color: 0x5555ff,
-  recursion: 1
+  recursion: 0
 });
 waterReflector.rotation.x = -Math.PI / 2;
 waterReflector.position.y = -0.5;
@@ -114,13 +132,11 @@ waterReflector.material.onBeforeCompile = (shader) => {
 
 scene.add(waterReflector);
 
-const clock = new THREE.Clock();
-
-// Variables for clickable objects
+/* -------------------- Model & interactions -------------------- */
 const loader = new GLTFLoader();
 let clickableScreens = {};
 let resumeScreen = null;
-const walls = []; // Walls will be stored here
+const walls = [];
 
 const screenVideos = {
   "screen_3dcompositing": "public/videos/Showreel_Personal.mp4",
@@ -129,60 +145,61 @@ const screenVideos = {
 };
 
 const screenImages = {
-  // renamed per your update: this mesh opens the gallery
-  "photography_portfolio": "__OPEN_GALLERY__"
+  "photography_portfolio": "__OPEN_GALLERY__" // opens gallery
 };
 
 const resumeURL = "Shivani_Resume_2025.pdf";
-
-// ✅ Your Custom Bounding Box Names from Blender
 const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
 
-// ✅ Load the 3D Model
-loader.load('public/models/cyberpunk_station.glb', function (gltf) {
-  const model = gltf.scene;
-  scene.add(model);
+// Delay heavy model load by one frame so page paints first
+requestAnimationFrame(() => {
+  loader.load('public/models/cyberpunk_station.glb', (gltf) => {
+    const model = gltf.scene;
+    scene.add(model);
 
-  model.traverse((child) => {
-    if (child.isMesh) {
-      if (!(child.material instanceof THREE.MeshStandardMaterial)) {
-        child.material = new THREE.MeshStandardMaterial({ color: child.material.color });
+    model.traverse((child) => {
+      if (child.isMesh) {
+        if (!(child.material instanceof THREE.MeshStandardMaterial)) {
+          child.material = new THREE.MeshStandardMaterial({ color: child.material.color });
+        }
+        child.material.metalness = 0.8;
+        child.material.roughness = 0.2;
+        child.material.envMapIntensity = 1.2;
+        child.material.needsUpdate = true;
+
+        if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+        if (child.material.emissiveMap) child.material.emissiveMap.encoding = THREE.sRGBEncoding;
+
+        if (screenVideos[child.name]) {
+          clickableScreens[child.name] = child; child.layers.set(0);
+        } else if (screenImages[child.name]) {
+          clickableScreens[child.name] = child; child.layers.set(0);
+        } else if (child.name === "resume_screen") {
+          resumeScreen = child; child.layers.set(0);
+        } else if (boundingBoxNames.includes(child.name)) {
+          child.layers.set(1); walls.push(child);
+        }
       }
-      child.material.metalness = 0.8;
-      child.material.roughness = 0.2;
-      child.material.envMapIntensity = 1.2;
-      child.material.needsUpdate = true;
+    });
 
-      if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
-      if (child.material.emissiveMap) child.material.emissiveMap.encoding = THREE.sRGBEncoding;
-
-      // ✅ Assign Layers
-      if (screenVideos[child.name]) {
-        clickableScreens[child.name] = child;
-        child.layers.set(0); // Interactive elements in Layer 0
-      } else if (screenImages[child.name]) { // images/special actions
-        clickableScreens[child.name] = child;
-        child.layers.set(0);
-      } else if (child.name === "resume_screen") {
-        resumeScreen = child;
-        child.layers.set(0);
-      } else if (boundingBoxNames.includes(child.name)) {
-        child.layers.set(1); // Bounding Boxes assigned to Layer 1 (walls)
-        walls.push(child);
-      }
-    }
+    // Hide loading overlay now that model is ready
+    const loading = document.getElementById('loading-overlay');
+    if (loading) loading.style.display = 'none';
+  }, undefined, (error) => {
+    console.error('Error loading model:', error);
+    const loading = document.getElementById('loading-overlay');
+    if (loading) loading.textContent = 'Failed to load. Please refresh.';
   });
-}, undefined, function (error) {
-  console.error('Error loading model:', error);
 });
 
-// ✅ Raycaster setup
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-// Unified interaction handler (mouse + touch)
-function onUserInteraction(event) {
+async function onUserInteraction(event) {
   event.preventDefault();
+
+  // Preload click sound just-in-time
+  try { await loadSoundOnce('public/sounds/beep.mp3', clickSound, { volume: 0.5 }); if (!clickSound.isPlaying) clickSound.play(); } catch {}
 
   let point = event.touches ? event.touches[0] : event;
   mouse.x = (point.clientX / window.innerWidth) * 2 - 1;
@@ -190,24 +207,19 @@ function onUserInteraction(event) {
 
   raycaster.setFromCamera(mouse, camera);
 
-  // Step 1: Intersect clickable objects
-  raycaster.layers.set(0); // clickable layer
+  // Intersect clickable objects
+  raycaster.layers.set(0);
   const clickableIntersects = raycaster.intersectObjects(
     [...Object.values(clickableScreens), resumeScreen].filter(Boolean)
   );
-
   if (clickableIntersects.length === 0) return;
 
   const hit = clickableIntersects[0];
   const clickedObject = hit.object;
 
-  // Play beep sound on click
-  if (!clickSound.isPlaying) clickSound.play();
-
-  // Step 2: Check walls in front
-  raycaster.layers.set(1); // walls layer
+  // Blocked by wall in front?
+  raycaster.layers.set(1);
   const wallIntersects = raycaster.intersectObjects(walls, true);
-
   if (wallIntersects.length > 0 && wallIntersects[0].distance < hit.distance) {
     console.log("❌ Click Blocked by Wall:", wallIntersects[0].object.name);
     return;
@@ -215,7 +227,6 @@ function onUserInteraction(event) {
 
   console.log("✅ Clicked:", clickedObject.name);
 
-  // Route to action based on name maps
   if (screenVideos[clickedObject.name]) {
     panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
   } else if (clickedObject === resumeScreen) {
@@ -229,24 +240,10 @@ function onUserInteraction(event) {
   }
 }
 
-// ✅ Add event listeners for BOTH clicks and touches
 window.addEventListener("click", onUserInteraction);
 window.addEventListener("touchstart", onUserInteraction, { passive: false });
 
-function animate() {
-  requestAnimationFrame(animate);
-  if (waterReflector.userData.shader) {
-    if (waterReflector.userData.shader.uniforms.rippleTime.value > 0) {
-      waterReflector.userData.shader.uniforms.rippleTime.value += 0.05;
-      if (waterReflector.userData.shader.uniforms.rippleTime.value > 3) {
-        waterReflector.userData.shader.uniforms.rippleTime.value = 0;
-      }
-    }
-  }
-  controls.update();
-  composer.render();
-}
-
+/* -------------------- Camera pan helper -------------------- */
 function panToScreen(target, callback) {
   const duration = 1000;
   const startPos = camera.position.clone();
@@ -259,40 +256,32 @@ function panToScreen(target, callback) {
     camera.position.lerpVectors(startPos, targetPos, progress);
     controls.target.lerpVectors(controls.target, targetLookAt, progress);
     controls.update();
-    if (progress < 1) {
-      requestAnimationFrame(animateCamera);
-    } else if (callback) {
-      setTimeout(callback, 500);
-    }
+    if (progress < 1) requestAnimationFrame(animateCamera);
+    else if (callback) setTimeout(callback, 500);
   }
   requestAnimationFrame(animateCamera);
 }
 
-function openVideoPopup(videoPath) {
-  if (!wooshSound.isPlaying) wooshSound.play(); // Play woosh sound
+/* -------------------- Popups -------------------- */
+async function openVideoPopup(videoPath) {
+  try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {}
   document.getElementById("video-source").src = videoPath;
   document.getElementById("video-player").load();
   document.getElementById("video-popup").style.display = "block";
-
-  // Pause ambient music when video is playing
   if (ambienceSound.isPlaying) ambienceSound.pause();
 }
 
 function openResumePopup() {
-  if (!wooshSound.isPlaying) wooshSound.play(); // Play woosh sound
+  (async ()=>{ try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {} })();
   document.getElementById("resume-popup").style.display = "block";
 }
 
 function openImageOverlay(imagePath) {
-  if (!wooshSound.isPlaying) wooshSound.play(); // Play woosh sound
+  (async ()=>{ try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {} })();
 
   const overlay = document.getElementById("image-overlay");
   const imageElement = document.getElementById("overlay-image");
-
-  if (!overlay || !imageElement) {
-    console.error("❌ ERROR: Overlay elements not found in DOM");
-    return;
-  }
+  if (!overlay || !imageElement) { console.error("❌ Overlay elements not found"); return; }
 
   imageElement.src = imagePath;
   overlay.style.display = "flex";
@@ -308,9 +297,8 @@ function openImageOverlay(imagePath) {
   overlay.style.zIndex = "9999";
 }
 
-// ✅ Function to close popups
 function closePopup(event) {
-  event.preventDefault(); // ✅ Prevents unwanted extra touch events on mobile
+  event.preventDefault();
   if (event.target.id === "close-popup") {
     document.getElementById("video-popup").style.display = "none";
     if (!ambienceSound.isPlaying) ambienceSound.play();
@@ -321,7 +309,6 @@ function closePopup(event) {
   }
 }
 
-// ✅ Function to safely add event listeners
 function addCloseEventListener(buttonId) {
   const button = document.getElementById(buttonId);
   if (button) {
@@ -331,35 +318,44 @@ function addCloseEventListener(buttonId) {
     console.error(`❌ Close button not found: ${buttonId}`);
   }
 }
-
-// ✅ Attach event listeners for closing popups
 addCloseEventListener("close-popup");
 addCloseEventListener("close-resume-popup");
 addCloseEventListener("close-overlay");
 
-/* ===== Postprocessing ===== */
+/* -------------------- Postprocessing (bloom delayed) -------------------- */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
-bloomPass.threshold = 0.3;
-bloomPass.strength = 1.2;
-bloomPass.radius = 0.8;
-composer.addPass(bloomPass);
+let bloomPass = null;
+requestAnimationFrame(() => {
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
+  bloomPass.threshold = 0.3;
+  bloomPass.strength = 1.0; // a bit lighter
+  bloomPass.radius = 0.6;
+  composer.addPass(bloomPass);
+});
 
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (waterReflector.userData.shader) {
+    if (waterReflector.userData.shader.uniforms.rippleTime.value > 0) {
+      waterReflector.userData.shader.uniforms.rippleTime.value += 0.05;
+      if (waterReflector.userData.shader.uniforms.rippleTime.value > 3) {
+        waterReflector.userData.shader.uniforms.rippleTime.value = 0;
+      }
+    }
+  }
+
+  controls.update();
+  composer.render();
+}
 animate();
 
 /* ================================
    📸 PHOTOGRAPHY GALLERY MODULE
-   - Grid fills viewport and scrolls
-   - Lightbox overlays grid (back + prev/next)
-   ================================ */
-/* ================================
-   📸 PHOTOGRAPHY GALLERY MODULE
-   - Grid fills viewport and scrolls
-   - Lightbox overlays grid (back + prev/next)
+   - Lazy loads on first open
    - Back arrow closes ONLY the overlay
-   - Fully null-safe bindings so scene never breaks
    ================================ */
 const GALLERY_COUNT = 36;
 const GALLERY_DIR = 'public/photography/';
@@ -377,7 +373,8 @@ const prevBtn = document.getElementById("pg-prev") || null;
 const nextBtn = document.getElementById("pg-next") || null;
 
 let currentIndex = 0;
-let galleryImages = []; // resolved URLs
+let galleryImages = [];
+let galleryReady = false;
 
 // Try to resolve a URL by testing extensions in order
 function resolveUrl(base) {
@@ -395,16 +392,13 @@ function resolveUrl(base) {
   });
 }
 
-// Build URLs 1..N with extension fallback
 async function buildGalleryList() {
+  // If all photos share a single ext, you can set EXT_CANDIDATES=['.jpg'] for fewer probes.
   const tasks = Array.from({ length: GALLERY_COUNT }, (_, k) => resolveUrl(String(k + 1)));
   const results = await Promise.allSettled(tasks);
-  galleryImages = results
-    .map((r) => (r.status === 'fulfilled' ? r.value : null))
-    .filter(Boolean);
+  galleryImages = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
 }
 
-// Build grid thumbnails once we have URLs
 function buildGrid() {
   if (!grid) return;
   const frag = document.createDocumentFragment();
@@ -420,20 +414,30 @@ function buildGrid() {
   grid.replaceChildren(frag);
 }
 
+async function ensureGallery() {
+  if (galleryReady) return;
+  await buildGalleryList();
+  buildGrid();
+  galleryReady = true;
+}
+
 // Open/close UI
-function openGallery() {
-  if (typeof controls !== 'undefined' && controls) controls.enabled = false; // pause 3D interactions
+async function openGallery() {
+  if (typeof controls !== 'undefined' && controls) controls.enabled = false;
   if (!galleryOverlay || !gridView) return;
+
+  await ensureGallery();
+
   galleryOverlay.classList.add('pg-open');
-  gridView.classList.add('pg-show');     // grid visible
-  if (lightbox) lightbox.classList.remove('pg-show');  // lightbox hidden until chosen
+  gridView.classList.add('pg-show');
+  if (lightbox) lightbox.classList.remove('pg-show');
   galleryOverlay.setAttribute('aria-hidden', 'false');
 }
 
 function closeGallery() {
   if (!galleryOverlay) return;
   galleryOverlay.classList.remove('pg-open');
-  galleryOverlay.classList.remove('pg-image-open'); // reset overlay state
+  galleryOverlay.classList.remove('pg-image-open');
   if (gridView) gridView.classList.remove('pg-show');
   if (lightbox) lightbox.classList.remove('pg-show');
   galleryOverlay.setAttribute('aria-hidden', 'true');
@@ -444,14 +448,13 @@ function closeGallery() {
 function openLightbox(i) {
   currentIndex = i;
   setLightboxImage();
-  if (galleryOverlay) galleryOverlay.classList.add('pg-image-open'); // mark overlay state (hides ×)
+  if (galleryOverlay) galleryOverlay.classList.add('pg-image-open'); // hides ×
   if (lightbox) {
     lightbox.classList.add('pg-show');
     lightbox.setAttribute('aria-hidden','false');
   }
 }
 
-// ✅ Close ONLY the overlay, keep the grid open
 function backToGrid() {
   if (lightbox) {
     lightbox.classList.remove('pg-show');
@@ -470,70 +473,43 @@ function setLightboxImage() {
 function prev() { currentIndex = (currentIndex - 1 + galleryImages.length) % galleryImages.length; setLightboxImage(); }
 function next() { currentIndex = (currentIndex + 1) % galleryImages.length; setLightboxImage(); }
 
-// Events (all null-safe)
+// Events
 if (closeGridBtn) closeGridBtn.addEventListener('click', closeGallery);
 if (prevBtn) prevBtn.addEventListener('click', prev);
 if (nextBtn) nextBtn.addEventListener('click', next);
 
-// Direct binding (if present now)
-if (backBtn) backBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); backToGrid(); });
-
-// Global delegated fallback (works even if button appears later or click lands on a child)
+// Direct back binding (if present)
+if (backBtn) {
+  backBtn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); backToGrid(); });
+}
+// Global delegation fallback
 document.addEventListener('click', (e) => {
   const t = e.target;
-  // Ensure we have an Element (not Text node)
   if (!t || t.nodeType !== 1) return;
   const backEl = t.closest && t.closest('#pg-backToGrid');
   if (backEl) {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     backToGrid();
   }
 });
 
-// Optional: click on scrim closes overlay too (only if you added .pg-lightbox-scrim in HTML)
+// Optional: click on scrim closes overlay too
 if (galleryOverlay) {
   galleryOverlay.addEventListener('click', (e) => {
     const el = e.target;
     if (el && el.classList && el.classList.contains('pg-lightbox-scrim')) {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       backToGrid();
     }
   });
-}
-
-
-// Delegated fallback on the overlay root
-if (galleryOverlay) {
-  galleryOverlay.addEventListener('click', (e) => {
-    const target = e.target && e.target.nodeType === 1 ? e.target : null;
-    if (!target) return;
-
-    // Back arrow click?
-    if (target.closest && target.closest('#pg-backToGrid')) {
-      backToGrid();
-    }
-
-    // Optional: click on scrim closes overlay too (if you have .pg-lightbox-scrim)
-    if (target.classList && target.classList.contains('pg-lightbox-scrim')) {
-      backToGrid();
-    }
-  });
-} else {
-  console.warn('⚠️ #photo-gallery not in DOM; skipping delegated back handler.');
 }
 
 // Keyboard
 window.addEventListener('keydown', (e) => {
   if (!galleryOverlay || !galleryOverlay.classList.contains('pg-open')) return;
   if (e.key === 'Escape') {
-    // If overlay is open, close only overlay; otherwise close whole gallery
-    if (lightbox && lightbox.classList.contains('pg-show')) {
-      backToGrid();
-    } else {
-      closeGallery();
-    }
+    if (lightbox && lightbox.classList.contains('pg-show')) backToGrid();
+    else closeGallery();
   } else if (e.key === 'ArrowLeft' && lightbox && lightbox.classList.contains('pg-show')) {
     prev();
   } else if (e.key === 'ArrowRight' && lightbox && lightbox.classList.contains('pg-show')) {
@@ -552,18 +528,3 @@ if (lightbox) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
   }, {passive:true});
 }
-
-// Init gallery list then grid
-(async function initGallery(){
-  try {
-    await buildGalleryList();
-    buildGrid();
-  } catch (err) {
-    console.error('Gallery init failed:', err);
-  }
-})();
-<<<<<<< HEAD
-/* --- End Photography Gallery --- */
-=======
-/* --- End Photography Gallery --- */
->>>>>>> 35434ffc4c6443e5f3469000bcd907eba0b78ad4
