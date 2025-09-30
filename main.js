@@ -562,4 +562,8 @@ if (lightbox) {
     console.error('Gallery init failed:', err);
   }
 })();
+<<<<<<< HEAD
 /* --- End Photography Gallery --- */
+=======
+/* --- End Photography Gallery --- */
+>>>>>>> 35434ffc4c6443e5f3469000bcd907eba0b78ad4
