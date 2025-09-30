@@ -1,102 +1,40 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome</title>
-  <link rel="stylesheet" href="./style.css">
+  <meta charset="utf-8" />
+  <title>Portfolio — Enter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Import Map for Three.js -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
-      }
-    }
-  </script>
+  <!-- Prefetch the next page & critical files -->
+  <link rel="prefetch" href="main.html" as="document" />
+  <link rel="preload" href="public/models/cyberpunk_station.glb" as="fetch" crossorigin>
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
 
-  <!-- Performance: warm up main.html and assets -->
-  <link rel="prefetch" href="/main.html" as="document">
-  <link rel="preload" href="/dist/main.css" as="style">
-  <link rel="preload" href="/dist/main.bundle.js" as="script">
-  <!-- Add other heavy assets here -->
-  <link rel="prefetch" href="/assets/models/bus-station.glb" as="fetch" crossorigin>
-  <link rel="prefetch" href="/assets/hdris/studio.hdr" as="fetch" crossorigin>
-
-  <!-- Chrome speculation rules: allow prerender -->
-  <script type="speculationrules">
-  {
-    "prefetch": [{ "source": "list", "urls": ["/main.html"] }],
-    "prerender": [{ "source": "list", "urls": ["/main.html"] }]
-  }
-  </script>
-
+  <link rel="stylesheet" href="style.css" />
   <style>
-    body {
-      margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background-color: black;
-      color: white;
-      font-family: Arial, sans-serif;
-      transition: opacity 0.6s ease; /* fade during swap */
+    /* Minimal splash layout */
+    body { display:grid; place-items:center; height:100vh; overflow:hidden; background:#000; color:#fff; }
+    .enter-wrap { text-align:center; }
+    .enter-btn {
+      appearance:none; border:0; padding:14px 28px; border-radius:10px;
+      background:#08f; color:#fff; font-size:18px; cursor:pointer;
+      box-shadow:0 0 30px rgba(0,128,255,.4);
     }
-    
-    #enter-button {
-      font-size: 2rem;
-      padding: 20px 40px;
-      border: 2px solid white;
-      background: transparent;
-      color: white;
-      cursor: pointer;
-      transition: 0.3s ease;
-    }
-
-    #enter-button:hover {
-      background: white;
-      color: black;
-    }
-
-    #fade-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: black;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 1s ease-in-out;
-    }
+    .enter-btn:hover { filter:brightness(1.1); }
   </style>
 </head>
 <body>
-
-  <button id="enter-button">ENTER</button>
-  <div id="fade-overlay"></div>
+  <div class="enter-wrap">
+    <h1>Welcome</h1>
+    <p>Click to enter</p>
+    <button id="enter-btn" class="enter-btn">ENTER</button>
+  </div>
 
   <script>
-    document.getElementById("enter-button").addEventListener("click", async function(e) {
-      e.preventDefault();
-      const overlay = document.getElementById("fade-overlay");
-      overlay.style.visibility = "visible";
-      overlay.style.opacity = "1";
-
-      // after fade, swap in main.html without full reload
-      setTimeout(async () => {
-        try {
-          const html = await (await fetch("/main.html", { credentials: "include" })).text();
-          history.pushState(null, "", "/main.html");
-          document.open(); document.write(html); document.close();
-        } catch (err) {
-          // fallback if fetch fails
-          window.location.href = "main.html";
-        }
-      }, 800); // slightly less than overlay duration
+    document.getElementById('enter-btn').addEventListener('click', () => {
+      // Normal navigation is faster than fetch+swap
+      window.location.href = 'main.html';
     });
   </script>
-
 </body>
 </html>
