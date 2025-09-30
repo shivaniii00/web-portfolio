@@ -387,12 +387,17 @@ function animate() {
 animate();
 
 /* ================================
-   📸 PHOTOGRAPHY GALLERY MODULE (lazy)
+   📸 PHOTOGRAPHY GALLERY — thumbs in grid, full-res in overlay
    ================================ */
-const GALLERY_COUNT = 36;
-const GALLERY_DIR = 'public/photography/';
-const EXT_CANDIDATES = ['.jpg', '.jpeg', '.png', '.webp'];
 
+/** 🔧 CONFIG — change to match your setup */
+const GALLERY_COUNT = 36;
+const FULL_DIR  = 'public/photography/full/';   // where the originals are
+const THUMB_DIR = 'public/photography/thumbs/'; // where the compressed thumbs are
+const FULL_EXT  = '.jpg';   // originals extension ('.jpg' | '.png' | '.webp')
+const THUMB_EXT = '.webp';  // thumbs extension   (use .webp if you can)
+
+/** DOM hooks */
 const galleryOverlay = document.getElementById("photo-gallery");
 const gridView = galleryOverlay?.querySelector(".pg-gridView") || null;
 const grid = document.getElementById("pg-grid") || null;
@@ -405,58 +410,83 @@ const prevBtn = document.getElementById("pg-prev") || null;
 const nextBtn = document.getElementById("pg-next") || null;
 
 let currentIndex = 0;
-let galleryImages = [];
 let galleryReady = false;
 
-// Try to resolve a URL by testing extensions in order
-function resolveUrl(base) {
-  return new Promise((resolve, reject) => {
-    let i = 0;
-    function tryNext() {
-      if (i >= EXT_CANDIDATES.length) return reject(new Error('No ext found'));
-      const url = `${GALLERY_DIR}${base}${EXT_CANDIDATES[i++]}`;
-      const img = new Image();
-      img.onload = () => resolve(url);
-      img.onerror = tryNext;
-      img.src = url;
-    }
-    tryNext();
-  });
-}
+/** Helpers to build URLs */
+const getThumb = (i) => `${THUMB_DIR}${i}${THUMB_EXT}`;
+const getFull  = (i) => `${FULL_DIR}${i}${FULL_EXT}`;
 
-async function buildGalleryList() {
-  const tasks = Array.from({ length: GALLERY_COUNT }, (_, k) => resolveUrl(String(k + 1)));
-  const results = await Promise.allSettled(tasks);
-  galleryImages = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
-}
-
+/** Build grid using THUMBS only (fast), fall back to full if thumb missing */
 function buildGrid() {
   if (!grid) return;
+
   const frag = document.createDocumentFragment();
-  galleryImages.forEach((src, i) => {
+
+  for (let i = 1; i <= GALLERY_COUNT; i++) {
     const img = document.createElement('img');
-    img.src = src;
-    img.alt = `Photo ${i + 1}`;
+    img.alt = `Photo ${i}`;
     img.loading = 'lazy';
     img.decoding = 'async';
+    img.fetchPriority = 'low';           // thumbs = background priority
+    img.setAttribute('data-lazy', '');   // for blur style until load
+    img.dataset.index = i;               // keep index for click open
+    img.dataset.full = getFull(i);       // full-res URL for overlay
+    img.src = getThumb(i);               // try thumb first
+
+    img.addEventListener('load', () => {
+      img.setAttribute('data-loaded', '1'); // remove blur
+      img.removeAttribute('data-lazy');
+    });
+
+    // If thumb 404s, gracefully show full-res in grid for that item only
+    img.addEventListener('error', () => {
+      img.src = img.dataset.full;
+    });
+
     img.addEventListener('click', () => openLightbox(i));
     frag.appendChild(img);
-  });
+  }
+
   grid.replaceChildren(frag);
+  hydrateLazyImages();
 }
 
-async function ensureGallery() {
+/** IntersectionObserver to avoid loading thumbs until scrolled into view */
+function hydrateLazyImages() {
+  if (!('IntersectionObserver' in window) || !gridView) {
+    // load immediately if IO not supported
+    grid.querySelectorAll('img[data-lazy]').forEach(img => {
+      // src is already set – nothing else to do
+      img.removeAttribute('data-lazy');
+    });
+    return;
+  }
+
+  const io = new IntersectionObserver((entries, obs) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const img = entry.target;
+      // src already set; just unmark lazy so CSS blur can drop on load
+      img.removeAttribute('data-lazy');
+      obs.unobserve(img);
+    }
+  }, { root: gridView, rootMargin: '200px 0px', threshold: 0.01 });
+
+  grid.querySelectorAll('img[data-lazy]').forEach(img => io.observe(img));
+}
+
+function ensureGallery() {
   if (galleryReady) return;
-  await buildGalleryList();
   buildGrid();
   galleryReady = true;
 }
 
-async function openGallery() {
+/** Open/close gallery */
+function openGallery() {
   if (typeof controls !== 'undefined' && controls) controls.enabled = false;
   if (!galleryOverlay || !gridView) return;
 
-  await ensureGallery();
+  ensureGallery();
 
   galleryOverlay.classList.add('pg-open');
   gridView.classList.add('pg-show');
@@ -466,46 +496,94 @@ async function openGallery() {
 
 function closeGallery() {
   if (!galleryOverlay) return;
-  galleryOverlay.classList.remove('pg-open');
-  galleryOverlay.classList.remove('pg-image-open');
-  if (gridView) gridView.classList.remove('pg-show');
-  if (lightbox) lightbox.classList.remove('pg-show');
+  galleryOverlay.classList.remove('pg-open', 'pg-image-open');
+  gridView && gridView.classList.remove('pg-show');
+  lightbox && lightbox.classList.remove('pg-show');
   galleryOverlay.setAttribute('aria-hidden', 'true');
   if (typeof controls !== 'undefined' && controls) controls.enabled = true;
 }
 
+/** Lightbox — progressive: show thumb first, then swap to full when it finishes */
 function openLightbox(i) {
   currentIndex = i;
-  setLightboxImage();
-  if (galleryOverlay) galleryOverlay.classList.add('pg-image-open');
+  setLightboxImage(true); // priority for initial display
+  galleryOverlay && galleryOverlay.classList.add('pg-image-open');
   if (lightbox) {
     lightbox.classList.add('pg-show');
     lightbox.setAttribute('aria-hidden','false');
   }
+  prefetchNeighbors(); // warm next/prev full-res
 }
+
 function backToGrid() {
   if (lightbox) {
     lightbox.classList.remove('pg-show');
     lightbox.setAttribute('aria-hidden','true');
   }
-  if (galleryOverlay) {
-    galleryOverlay.classList.remove('pg-image-open');
-  }
+  galleryOverlay && galleryOverlay.classList.remove('pg-image-open');
 }
-function setLightboxImage() {
-  if (!lightboxImg) return;
-  lightboxImg.src = galleryImages[currentIndex];
-  lightboxImg.alt = `Photo ${currentIndex + 1}`;
-}
-function prev() { currentIndex = (currentIndex - 1 + galleryImages.length) % galleryImages.length; setLightboxImage(); }
-function next() { currentIndex = (currentIndex + 1) % galleryImages.length; setLightboxImage(); }
 
-if (closeGridBtn) closeGridBtn.addEventListener('click', closeGallery);
-if (prevBtn) prevBtn.addEventListener('click', prev);
-if (nextBtn) nextBtn.addEventListener('click', next);
-if (backBtn) {
-  backBtn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); backToGrid(); });
+/** Load current image:
+ *  1) Set thumb immediately (fast)
+ *  2) Load full in memory; swap when ready (no flash)
+ */
+function setLightboxImage(priority = false) {
+  if (!lightboxImg) return;
+  const idx = currentIndex;
+  const thumbURL = getThumb(idx);
+  const fullURL  = getFull(idx);
+
+  // show thumb instantly
+  lightboxImg.src = thumbURL;
+  lightboxImg.alt = `Photo ${idx}`;
+  if (priority) lightboxImg.fetchPriority = 'high';
+
+  // now stream full, then swap
+  const hi = new Image();
+  hi.decoding = 'async';
+  hi.loading = 'eager';
+  hi.src = fullURL;
+  hi.onload = () => {
+    // only swap if we're still looking at the same index
+    if (currentIndex === idx) {
+      lightboxImg.src = fullURL;
+    }
+  };
 }
+
+/** Preload neighbors (full-res) for snappy nav */
+function prefetchNeighbors() {
+  const prevIdx = (currentIndex - 1 + GALLERY_COUNT) % GALLERY_COUNT || GALLERY_COUNT;
+  const nextIdx = (currentIndex % GALLERY_COUNT) + 1;
+
+  [prevIdx, nextIdx].forEach(idx => {
+    const url = getFull(idx);
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'image';
+    link.href = url;
+    document.head.appendChild(link);
+    setTimeout(() => link.remove(), 5000);
+  });
+}
+
+function prev() {
+  currentIndex = (currentIndex - 2 + GALLERY_COUNT) % GALLERY_COUNT + 1;
+  setLightboxImage();
+  prefetchNeighbors();
+}
+function next() {
+  currentIndex = (currentIndex % GALLERY_COUNT) + 1;
+  setLightboxImage();
+  prefetchNeighbors();
+}
+
+/** Events */
+closeGridBtn && closeGridBtn.addEventListener('click', closeGallery);
+prevBtn && prevBtn.addEventListener('click', prev);
+nextBtn && nextBtn.addEventListener('click', next);
+backBtn && backBtn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); backToGrid(); });
+
 document.addEventListener('click', (e) => {
   const t = e.target;
   if (!t || t.nodeType !== 1) return;
@@ -515,6 +593,7 @@ document.addEventListener('click', (e) => {
     backToGrid();
   }
 });
+
 if (galleryOverlay) {
   galleryOverlay.addEventListener('click', (e) => {
     const el = e.target;
@@ -537,6 +616,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+/** Optional: touch swipe on lightbox */
 let sx = 0, sy = 0;
 if (lightbox) {
   lightbox.addEventListener('touchstart', (e)=>{ const t = e.touches[0]; sx = t.clientX; sy = t.clientY; }, {passive:true});
