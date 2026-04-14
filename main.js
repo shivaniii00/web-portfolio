@@ -11,10 +11,8 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 
-/* -------------------- asset config -------------------- */
 const ASSETS = { MODEL: "public/models/cyberpunk_station.glb" };
 
-/* -------------------- Loading UI -------------------- */
 const loadingOverlay   = document.getElementById('loading-overlay');
 const loadingBarFill   = document.getElementById('loading-bar-fill');
 const loadingPercentEl = document.getElementById('loading-percent');
@@ -24,8 +22,8 @@ function setProgress(pct) {
   const p = Math.max(0, Math.min(100, pct|0));
   if (p < lastShownPct) return;
   lastShownPct = p;
-  if (loadingBarFill)   loadingBarFill.style.width   = p + '%';
-  if (loadingPercentEl) loadingPercentEl.textContent  = p + '%';
+  if (loadingBarFill)   loadingBarFill.style.width  = p + '%';
+  if (loadingPercentEl) loadingPercentEl.textContent = p + '%';
 }
 function hideLoading() {
   if (!loadingOverlay) return;
@@ -34,10 +32,9 @@ function hideLoading() {
   setTimeout(() => { loadingOverlay.style.display = 'none'; }, 400);
 }
 
-/* -------------------- Scene -------------------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
-window.__scene = scene; // exposed for console debugging
+window.__scene = scene;
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 0, 10);
@@ -74,11 +71,10 @@ const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
 scene.add(ambientLight);
 const spotlight = new THREE.SpotLight(0xffffff, 1.2);
 spotlight.position.set(0, 5, 5);
-spotlight.angle   = Math.PI / 6;
+spotlight.angle    = Math.PI / 6;
 spotlight.penumbra = 0.5;
 scene.add(spotlight);
 
-/* -------------------- Audio -------------------- */
 const listener     = new THREE.AudioListener();
 camera.add(listener);
 const audioLoader   = new THREE.AudioLoader();
@@ -90,14 +86,10 @@ function loadSoundOnce(path, target, { loop = false, volume = 0.5 } = {}) {
   return new Promise((resolve, reject) => {
     if (target.isAudio && target.buffer) return resolve();
     audioLoader.load(path, (buffer) => {
-      target.setBuffer(buffer);
-      target.setLoop(loop);
-      target.setVolume(volume);
-      resolve();
+      target.setBuffer(buffer); target.setLoop(loop); target.setVolume(volume); resolve();
     }, undefined, reject);
   });
 }
-
 function setupAmbienceOnFirstGesture() {
   const start = async () => {
     try {
@@ -110,40 +102,31 @@ function setupAmbienceOnFirstGesture() {
 }
 setupAmbienceOnFirstGesture();
 
-/* -------------------- Water reflector -------------------- */
-const waterGeometry = new THREE.PlaneGeometry(100, 100);
+const waterGeometry  = new THREE.PlaneGeometry(100, 100);
 const texW = Math.floor(window.innerWidth  * window.devicePixelRatio * 0.5);
 const texH = Math.floor(window.innerHeight * window.devicePixelRatio * 0.5);
-
 const waterReflector = new Reflector(waterGeometry, {
-  clipBias: 0.003, textureWidth: texW, textureHeight: texH,
-  color: 0x5555ff, recursion: 0
+  clipBias: 0.003, textureWidth: texW, textureHeight: texH, color: 0x5555ff, recursion: 0
 });
 waterReflector.rotation.x = -Math.PI / 2;
 waterReflector.position.y = -0.5;
-
 waterReflector.material.onBeforeCompile = (shader) => {
   shader.uniforms.clickPosition = { value: new THREE.Vector2(-1, -1) };
   shader.uniforms.rippleTime    = { value: 0 };
   shader.fragmentShader = shader.fragmentShader.replace(
     `gl_FragColor = vec4( base, 1.0 );`,
-    `float dist   = length(vUv - clickPosition);
-     float ripple = 0.0;
-     if (rippleTime > 0.0) {
-       ripple = sin(dist * 30.0 - rippleTime * 5.0) * exp(-dist * 20.0) * 0.03;
-     }
-     vec2 rippleUV    = vUv + ripple;
-     vec4 rippleColor = texture2D(tDiffuse, rippleUV);
-     gl_FragColor     = mix(vec4(base.rgb, 1.0), rippleColor, 0.85);`
+    `float dist=length(vUv-clickPosition);float ripple=0.0;
+     if(rippleTime>0.0){ripple=sin(dist*30.0-rippleTime*5.0)*exp(-dist*20.0)*0.03;}
+     vec2 rippleUV=vUv+ripple;vec4 rippleColor=texture2D(tDiffuse,rippleUV);
+     gl_FragColor=mix(vec4(base.rgb,1.0),rippleColor,0.85);`
   );
   waterReflector.userData.shader = shader;
 };
 scene.add(waterReflector);
 
-/* -------------------- GLTF Loader -------------------- */
 const manager = new THREE.LoadingManager();
 manager.onStart    = () => setProgress(5);
-manager.onProgress = (url, loaded, total) => setProgress(Math.max(Math.round((loaded / Math.max(total, 1)) * 90), lastShownPct));
+manager.onProgress = (url, loaded, total) => setProgress(Math.max(Math.round((loaded / Math.max(total,1)) * 90), lastShownPct));
 manager.onError    = (url) => console.warn('Failed to load:', url);
 
 const loader = new GLTFLoader(manager);
@@ -153,21 +136,19 @@ dracoLoader.preload();
 loader.setDRACOLoader(dracoLoader);
 loader.setMeshoptDecoder(MeshoptDecoder);
 
-/* -------------------- Scene state -------------------- */
 let clickableScreens = {};
 let resumeScreen     = null;
-let contactHitBox    = null;   // ← declared here so raycaster can always see it
+let contactHitBox    = null;
 const walls          = [];
 
 const screenVideos = {
-  "screen_3dcompositing": "public/videos/Showreel_Personal.mp4",
-  "screen_2dcompositing": "public/videos/Showreel_Professional.mp4",
+  "screen_3dcompositing":  "public/videos/Showreel_Personal.mp4",
+  "screen_2dcompositing":  "public/videos/Showreel_Professional.mp4",
   "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
 };
-const screenImages      = { "photography_portfolio": "__OPEN_GALLERY__" };
-const boundingBoxNames  = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
+const screenImages     = { "photography_portfolio": "__OPEN_GALLERY__" };
+const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
 
-/* -------------------- Load model -------------------- */
 requestAnimationFrame(() => {
   loader.load(
     ASSETS.MODEL,
@@ -179,21 +160,18 @@ requestAnimationFrame(() => {
       let contactTextMesh = null;
 
       model.traverse((child) => {
-        // Grab the contact text on ANY object type (Group or Mesh)
         if (child.name === "Contact" || child.name === "Text") {
           contactTextMesh = child;
           console.log("✅ Found contact object:", child.name, child.type);
         }
-
         if (child.isMesh) {
           if (!(child.material instanceof THREE.MeshStandardMaterial)) {
             child.material = new THREE.MeshStandardMaterial({ color: child.material.color });
           }
-          child.material.metalness        = 0.8;
-          child.material.roughness        = 0.2;
-          child.material.envMapIntensity  = 1.2;
-          child.material.needsUpdate      = true;
-
+          child.material.metalness       = 0.8;
+          child.material.roughness       = 0.2;
+          child.material.envMapIntensity = 1.2;
+          child.material.needsUpdate     = true;
           if (child.material.map)         child.material.map.encoding         = THREE.sRGBEncoding;
           if (child.material.emissiveMap) child.material.emissiveMap.encoding = THREE.sRGBEncoding;
 
@@ -209,10 +187,8 @@ requestAnimationFrame(() => {
         }
       });
 
-      // Build invisible hit box over the contact text now world matrices are ready
       if (contactTextMesh) {
         contactTextMesh.updateWorldMatrix(true, true);
-
         const bbox   = new THREE.Box3().setFromObject(contactTextMesh);
         const size   = new THREE.Vector3();
         const center = new THREE.Vector3();
@@ -227,11 +203,12 @@ requestAnimationFrame(() => {
         const hitMat  = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
         contactHitBox = new THREE.Mesh(hitGeo, hitMat);
         contactHitBox.position.copy(center);
-        contactHitBox.layers.set(0);
+        contactHitBox.layers.disableAll();
+        contactHitBox.layers.enable(0);
         scene.add(contactHitBox);
-        console.log("✅ contactHitBox created at", contactHitBox.position, "| size:", size);
+        console.log("✅ contactHitBox at", contactHitBox.position, "size", size);
       } else {
-        console.warn("⚠️ Contact/Text mesh not found — check the object name in Blender");
+        console.warn("⚠️ Contact mesh not found");
       }
 
       hideLoading();
@@ -250,7 +227,6 @@ requestAnimationFrame(() => {
   );
 });
 
-/* -------------------- Raycaster & interactions -------------------- */
 const raycaster = new THREE.Raycaster();
 const mouse     = new THREE.Vector2();
 
@@ -262,19 +238,28 @@ async function onUserInteraction(event) {
   } catch {}
 
   const point = event.touches ? event.touches[0] : event;
-  mouse.x = ( point.clientX / window.innerWidth)  *  2 - 1;
-  mouse.y = -(point.clientY / window.innerHeight) *  2 + 1;
-
+  mouse.x = ( point.clientX / window.innerWidth)  * 2 - 1;
+  mouse.y = -(point.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
 
+  // Check normal clickable objects on layer 0
   raycaster.layers.set(0);
-  const targets = [...Object.values(clickableScreens), resumeScreen, contactHitBox].filter(Boolean);
+  const targets = [...Object.values(clickableScreens), resumeScreen].filter(Boolean);
   const clickableIntersects = raycaster.intersectObjects(targets);
-  if (clickableIntersects.length === 0) return;
 
-  const hit          = clickableIntersects[0];
+  // Check contactHitBox separately — bypass layer system entirely
+  raycaster.layers.enableAll();
+  const hitBoxIntersects = contactHitBox ? raycaster.intersectObject(contactHitBox) : [];
+
+  const allIntersects = [...clickableIntersects, ...hitBoxIntersects]
+    .sort((a, b) => a.distance - b.distance);
+
+  if (allIntersects.length === 0) return;
+
+  const hit           = allIntersects[0];
   const clickedObject = hit.object;
 
+  // Wall occlusion check
   raycaster.layers.set(1);
   const wallIntersects = raycaster.intersectObjects(walls, true);
   if (wallIntersects.length > 0 && wallIntersects[0].distance < hit.distance) {
@@ -282,14 +267,14 @@ async function onUserInteraction(event) {
     return;
   }
 
-  console.log("✅ Clicked:", clickedObject.name || "(contactHitBox)");
+  console.log("✅ Clicked:", clickedObject === contactHitBox ? "contactHitBox" : clickedObject.name);
 
-  if (screenVideos[clickedObject.name]) {
+  if (clickedObject === contactHitBox) {
+    openContactPopup();
+  } else if (screenVideos[clickedObject.name]) {
     panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
   } else if (clickedObject === resumeScreen) {
     panToScreen(resumeScreen, openResumePopup);
-  } else if (clickedObject === contactHitBox) {
-    openContactPopup();
   } else if (screenImages[clickedObject.name]) {
     if (screenImages[clickedObject.name] === "__OPEN_GALLERY__") {
       panToScreen(clickedObject, openGallery);
@@ -302,14 +287,12 @@ async function onUserInteraction(event) {
 window.addEventListener("click",      onUserInteraction);
 window.addEventListener("touchstart", onUserInteraction, { passive: false });
 
-/* -------------------- Camera pan -------------------- */
 function panToScreen(target, callback) {
-  const duration    = 1000;
-  const startPos    = camera.position.clone();
-  const targetPos   = new THREE.Vector3(0, 0, 10);
+  const duration     = 1000;
+  const startPos     = camera.position.clone();
+  const targetPos    = new THREE.Vector3(0, 0, 10);
   const targetLookAt = new THREE.Vector3(0, 0, 0);
-  let startTime     = null;
-
+  let startTime      = null;
   function animateCamera(time) {
     if (!startTime) startTime = time;
     const progress = Math.min((time - startTime) / duration, 1);
@@ -322,7 +305,6 @@ function panToScreen(target, callback) {
   requestAnimationFrame(animateCamera);
 }
 
-/* -------------------- Popups -------------------- */
 async function openVideoPopup(videoPath) {
   try {
     await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 });
@@ -372,33 +354,27 @@ function openImageOverlay(imagePath) {
   const overlay      = document.getElementById("image-overlay");
   const imageElement = document.getElementById("overlay-image");
   if (!overlay || !imageElement) { console.error("❌ Overlay elements not found"); return; }
-  imageElement.src              = imagePath;
-  overlay.style.display         = "flex";
-  overlay.style.position        = "fixed";
-  overlay.style.top             = "0";
-  overlay.style.left            = "0";
-  overlay.style.width           = "100vw";
-  overlay.style.height          = "100vh";
-  overlay.style.background      = "rgba(0,0,0,0.8)";
-  overlay.style.justifyContent  = "center";
-  overlay.style.alignItems      = "center";
-  overlay.style.flexDirection   = "column";
-  overlay.style.zIndex          = "9999";
+  imageElement.src             = imagePath;
+  overlay.style.display        = "flex";
+  overlay.style.position       = "fixed";
+  overlay.style.top            = "0";
+  overlay.style.left           = "0";
+  overlay.style.width          = "100vw";
+  overlay.style.height         = "100vh";
+  overlay.style.background     = "rgba(0,0,0,0.8)";
+  overlay.style.justifyContent = "center";
+  overlay.style.alignItems     = "center";
+  overlay.style.flexDirection  = "column";
+  overlay.style.zIndex         = "9999";
 }
 
 function closePopup(event) {
   event.preventDefault();
   const id = event.target.id;
-  if (id === "close-popup") {
-    document.getElementById("video-popup").style.display = "none";
-    if (!ambienceSound.isPlaying) ambienceSound.play();
-  } else if (id === "close-resume-popup") {
-    document.getElementById("resume-popup").style.display = "none";
-  } else if (id === "close-overlay") {
-    document.getElementById("image-overlay").style.display = "none";
-  } else if (id === "close-contact-popup") {
-    closeContactPopup();
-  }
+  if      (id === "close-popup")         { document.getElementById("video-popup").style.display = "none"; if (!ambienceSound.isPlaying) ambienceSound.play(); }
+  else if (id === "close-resume-popup")  { document.getElementById("resume-popup").style.display = "none"; }
+  else if (id === "close-overlay")       { document.getElementById("image-overlay").style.display = "none"; }
+  else if (id === "close-contact-popup") { closeContactPopup(); }
 }
 
 function addCloseEventListener(buttonId) {
@@ -415,7 +391,6 @@ addCloseEventListener("close-resume-popup");
 addCloseEventListener("close-overlay");
 addCloseEventListener("close-contact-popup");
 
-/* -------------------- Postprocessing -------------------- */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
@@ -432,19 +407,14 @@ function animate() {
   requestAnimationFrame(animate);
   if (waterReflector.userData.shader) {
     const rt = waterReflector.userData.shader.uniforms.rippleTime;
-    if (rt.value > 0) {
-      rt.value += 0.05;
-      if (rt.value > 3) rt.value = 0;
-    }
+    if (rt.value > 0) { rt.value += 0.05; if (rt.value > 3) rt.value = 0; }
   }
   controls.update();
   composer.render();
 }
 animate();
 
-/* ================================
-   📸 PHOTOGRAPHY GALLERY
-   ================================ */
+/* ================================ PHOTOGRAPHY GALLERY ================================ */
 const GALLERY_COUNT = 36;
 const FULL_DIR  = 'public/photography/full/';
 const THUMB_DIR = 'public/photography/thumbs/';
@@ -471,10 +441,10 @@ function buildGrid() {
   if (!grid) return;
   const frag = document.createDocumentFragment();
   for (let i = 1; i <= GALLERY_COUNT; i++) {
-    const img = document.createElement('img');
-    img.alt           = `Photo ${i}`;
-    img.loading       = 'lazy';
-    img.decoding      = 'async';
+    const img       = document.createElement('img');
+    img.alt         = `Photo ${i}`;
+    img.loading     = 'lazy';
+    img.decoding    = 'async';
     img.fetchPriority = 'low';
     img.setAttribute('data-lazy', '');
     img.dataset.index = i;
@@ -519,8 +489,8 @@ function openGallery() {
 function closeGallery() {
   if (!galleryOverlay) return;
   galleryOverlay.classList.remove('pg-open', 'pg-image-open');
-  gridView  && gridView.classList.remove('pg-show');
-  lightbox  && lightbox.classList.remove('pg-show');
+  gridView && gridView.classList.remove('pg-show');
+  lightbox && lightbox.classList.remove('pg-show');
   galleryOverlay.setAttribute('aria-hidden', 'true');
   if (controls) controls.enabled = true;
 }
@@ -540,7 +510,7 @@ function backToGrid() {
 
 function setLightboxImage(priority = false) {
   if (!lightboxImg) return;
-  const idx     = currentIndex;
+  const idx       = currentIndex;
   lightboxImg.src = getThumb(idx);
   lightboxImg.alt = `Photo ${idx}`;
   if (priority) lightboxImg.fetchPriority = 'high';
@@ -555,17 +525,15 @@ function prefetchNeighbors() {
   const prevIdx = (currentIndex - 1 + GALLERY_COUNT) % GALLERY_COUNT || GALLERY_COUNT;
   const nextIdx = (currentIndex % GALLERY_COUNT) + 1;
   [prevIdx, nextIdx].forEach(idx => {
-    const link  = document.createElement('link');
-    link.rel    = 'preload';
-    link.as     = 'image';
-    link.href   = getFull(idx);
+    const link = document.createElement('link');
+    link.rel = 'preload'; link.as = 'image'; link.href = getFull(idx);
     document.head.appendChild(link);
     setTimeout(() => link.remove(), 5000);
   });
 }
 
 function prev() { currentIndex = (currentIndex - 2 + GALLERY_COUNT) % GALLERY_COUNT + 1; setLightboxImage(); prefetchNeighbors(); }
-function next() { currentIndex = (currentIndex % GALLERY_COUNT) + 1;                      setLightboxImage(); prefetchNeighbors(); }
+function next() { currentIndex = (currentIndex % GALLERY_COUNT) + 1; setLightboxImage(); prefetchNeighbors(); }
 
 closeGridBtn && closeGridBtn.addEventListener('click', closeGallery);
 prevBtn      && prevBtn.addEventListener('click', prev);
@@ -584,7 +552,7 @@ if (galleryOverlay) {
 
 window.addEventListener('keydown', (e) => {
   if (!galleryOverlay?.classList.contains('pg-open')) return;
-  if (e.key === 'Escape')      { lightbox?.classList.contains('pg-show') ? backToGrid() : closeGallery(); }
+  if      (e.key === 'Escape')     { lightbox?.classList.contains('pg-show') ? backToGrid() : closeGallery(); }
   else if (e.key === 'ArrowLeft'  && lightbox?.classList.contains('pg-show')) prev();
   else if (e.key === 'ArrowRight' && lightbox?.classList.contains('pg-show')) next();
 });
