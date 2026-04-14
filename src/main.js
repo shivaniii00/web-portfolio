@@ -142,8 +142,8 @@ let contactHitBox    = null;
 const walls          = [];
 
 const screenVideos = {
-  "screen_3dcompositing":  "public/videos/Rotopaint_Showreel.mp4",
-  "screen_2dcompositing":  "public/videos/Showreel_Professional.mp4",
+  "screen_3dcompositing":  "public/videos/Showreel_Professional.mp4",
+  "screen_2dcompositing":  "public/videos/Rotopaint_Showreel.mp4",
   "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
 };
 const screenImages     = { "photography_portfolio": "__OPEN_GALLERY__" };
