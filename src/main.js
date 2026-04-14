@@ -8,27 +8,24 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-/* 🔽 NEW: decoders for Draco + Meshopt */
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 
-/* -------------------- quick asset config -------------------- */
-const ASSETS = {
-  MODEL: "public/models/cyberpunk_station.glb"
-};
+/* -------------------- asset config -------------------- */
+const ASSETS = { MODEL: "public/models/cyberpunk_station.glb" };
 
-/* -------------------- Loading UI helpers -------------------- */
-const loadingOverlay = document.getElementById('loading-overlay');
-const loadingBarFill = document.getElementById('loading-bar-fill');
+/* -------------------- Loading UI -------------------- */
+const loadingOverlay   = document.getElementById('loading-overlay');
+const loadingBarFill   = document.getElementById('loading-bar-fill');
 const loadingPercentEl = document.getElementById('loading-percent');
 
 let lastShownPct = 0;
 function setProgress(pct) {
   const p = Math.max(0, Math.min(100, pct|0));
-  if (p < lastShownPct) return; // never go backwards
+  if (p < lastShownPct) return;
   lastShownPct = p;
-  if (loadingBarFill) loadingBarFill.style.width = p + '%';
-  if (loadingPercentEl) loadingPercentEl.textContent = p + '%';
+  if (loadingBarFill)   loadingBarFill.style.width   = p + '%';
+  if (loadingPercentEl) loadingPercentEl.textContent  = p + '%';
 }
 function hideLoading() {
   if (!loadingOverlay) return;
@@ -37,10 +34,10 @@ function hideLoading() {
   setTimeout(() => { loadingOverlay.style.display = 'none'; }, 400);
 }
 
-/* -------------------- Three.js scene -------------------- */
+/* -------------------- Scene -------------------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
-window.__scene = scene;
+window.__scene = scene; // exposed for console debugging
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 0, 10);
@@ -52,46 +49,44 @@ const renderer = new THREE.WebGLRenderer({
 });
 
 const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-const startDPR = isMobile ? 1.25 : 1.5;
-renderer.setPixelRatio(startDPR);
+renderer.setPixelRatio(isMobile ? 1.25 : 1.5);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
 
 setTimeout(() => {
-  const bump = isMobile ? 1.5 : 2;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, bump));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
 }, 2000);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
-controls.maxPolarAngle = Math.PI / 2.2;
-controls.minPolarAngle = Math.PI / 3;
-controls.enableZoom = true;
-controls.enablePan = true;
-controls.touchZoomSpeed = 0.5;
+controls.enableDamping    = true;
+controls.dampingFactor    = 0.05;
+controls.maxPolarAngle    = Math.PI / 2.2;
+controls.minPolarAngle    = Math.PI / 3;
+controls.enableZoom       = true;
+controls.enablePan        = true;
+controls.touchZoomSpeed   = 0.5;
 controls.touchRotateSpeed = 1.0;
 
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
 scene.add(ambientLight);
 const spotlight = new THREE.SpotLight(0xffffff, 1.2);
 spotlight.position.set(0, 5, 5);
-spotlight.angle = Math.PI / 6;
+spotlight.angle   = Math.PI / 6;
 spotlight.penumbra = 0.5;
 scene.add(spotlight);
 
-/* -------------------- Audio (lazy) -------------------- */
-const listener = new THREE.AudioListener();
+/* -------------------- Audio -------------------- */
+const listener     = new THREE.AudioListener();
 camera.add(listener);
-const audioLoader = new THREE.AudioLoader();
+const audioLoader   = new THREE.AudioLoader();
 const ambienceSound = new THREE.Audio(listener);
-const clickSound = new THREE.Audio(listener);
-const wooshSound = new THREE.Audio(listener);
+const clickSound    = new THREE.Audio(listener);
+const wooshSound    = new THREE.Audio(listener);
 
-function loadSoundOnce(path, target, { loop=false, volume=0.5 } = {}) {
+function loadSoundOnce(path, target, { loop = false, volume = 0.5 } = {}) {
   return new Promise((resolve, reject) => {
     if (target.isAudio && target.buffer) return resolve();
     audioLoader.load(path, (buffer) => {
@@ -102,10 +97,11 @@ function loadSoundOnce(path, target, { loop=false, volume=0.5 } = {}) {
     }, undefined, reject);
   });
 }
+
 function setupAmbienceOnFirstGesture() {
   const start = async () => {
     try {
-      await loadSoundOnce('public/sounds/ambience.wav', ambienceSound, { loop:true, volume:0.3 });
+      await loadSoundOnce('public/sounds/ambience.wav', ambienceSound, { loop: true, volume: 0.3 });
       if (!ambienceSound.isPlaying) ambienceSound.play();
     } catch {}
     window.removeEventListener('pointerdown', start, { capture: true });
@@ -114,92 +110,76 @@ function setupAmbienceOnFirstGesture() {
 }
 setupAmbienceOnFirstGesture();
 
-/* -------------------- Reflective water (reduced cost) -------------------- */
+/* -------------------- Water reflector -------------------- */
 const waterGeometry = new THREE.PlaneGeometry(100, 100);
-const scale = 0.5;
-const texW = Math.floor(window.innerWidth * window.devicePixelRatio * scale);
-const texH = Math.floor(window.innerHeight * window.devicePixelRatio * scale);
+const texW = Math.floor(window.innerWidth  * window.devicePixelRatio * 0.5);
+const texH = Math.floor(window.innerHeight * window.devicePixelRatio * 0.5);
 
 const waterReflector = new Reflector(waterGeometry, {
-  clipBias: 0.003,
-  textureWidth: texW,
-  textureHeight: texH,
-  color: 0x5555ff,
-  recursion: 0
+  clipBias: 0.003, textureWidth: texW, textureHeight: texH,
+  color: 0x5555ff, recursion: 0
 });
 waterReflector.rotation.x = -Math.PI / 2;
 waterReflector.position.y = -0.5;
 
 waterReflector.material.onBeforeCompile = (shader) => {
   shader.uniforms.clickPosition = { value: new THREE.Vector2(-1, -1) };
-  shader.uniforms.rippleTime = { value: 0 };
+  shader.uniforms.rippleTime    = { value: 0 };
   shader.fragmentShader = shader.fragmentShader.replace(
     `gl_FragColor = vec4( base, 1.0 );`,
-    `
-    float dist = length(vUv - clickPosition);
-    float ripple = 0.0;
-    if (rippleTime > 0.0) {
-      ripple = sin(dist * 30.0 - rippleTime * 5.0) * exp(-dist * 20.0) * 0.03;
-    }
-    vec2 rippleUV = vUv + ripple;
-    vec4 rippleColor = texture2D(tDiffuse, rippleUV);
-    gl_FragColor = mix(vec4(base.rgb, 1.0), rippleColor, 0.85);
-    `
+    `float dist   = length(vUv - clickPosition);
+     float ripple = 0.0;
+     if (rippleTime > 0.0) {
+       ripple = sin(dist * 30.0 - rippleTime * 5.0) * exp(-dist * 20.0) * 0.03;
+     }
+     vec2 rippleUV    = vUv + ripple;
+     vec4 rippleColor = texture2D(tDiffuse, rippleUV);
+     gl_FragColor     = mix(vec4(base.rgb, 1.0), rippleColor, 0.85);`
   );
   waterReflector.userData.shader = shader;
 };
 scene.add(waterReflector);
 
-/* -------------------- LoadingManager + GLTF -------------------- */
+/* -------------------- GLTF Loader -------------------- */
 const manager = new THREE.LoadingManager();
-manager.onStart = () => { setProgress(5); };
-manager.onProgress = (url, itemsLoaded, itemsTotal) => {
-  const pct = Math.round((itemsLoaded / Math.max(itemsTotal, 1)) * 90);
-  setProgress(Math.max(pct, lastShownPct));
-};
-manager.onError = (url) => { console.warn('Failed to load:', url); };
+manager.onStart    = () => setProgress(5);
+manager.onProgress = (url, loaded, total) => setProgress(Math.max(Math.round((loaded / Math.max(total, 1)) * 90), lastShownPct));
+manager.onError    = (url) => console.warn('Failed to load:', url);
 
 const loader = new GLTFLoader(manager);
-
-/* 🔽 NEW: wire Draco + Meshopt decoders so compressed GLBs load */
 const dracoLoader = new DRACOLoader();
-// Use Google's hosted Draco decoders (no files to host yourself).
 dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
 dracoLoader.preload();
 loader.setDRACOLoader(dracoLoader);
-
-// Meshopt (harmless if not used; required if your GLB has EXT_meshopt_compression)
 loader.setMeshoptDecoder(MeshoptDecoder);
 
+/* -------------------- Scene state -------------------- */
 let clickableScreens = {};
-let resumeScreen = null;
-let contactHitBox = null;
-const walls = [];
+let resumeScreen     = null;
+let contactHitBox    = null;   // ← declared here so raycaster can always see it
+const walls          = [];
 
 const screenVideos = {
   "screen_3dcompositing": "public/videos/Showreel_Personal.mp4",
   "screen_2dcompositing": "public/videos/Showreel_Professional.mp4",
   "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
 };
-const screenImages = { "photography_portfolio": "__OPEN_GALLERY__" };
-const resumeURL = "Shivani_Resume_2025.pdf";
-const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
+const screenImages      = { "photography_portfolio": "__OPEN_GALLERY__" };
+const boundingBoxNames  = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
 
-// Delay heavy GLTF by one frame
+/* -------------------- Load model -------------------- */
 requestAnimationFrame(() => {
   loader.load(
     ASSETS.MODEL,
     (gltf) => {
-      // Final 10%: building scene
       setProgress(95);
-
       const model = gltf.scene;
       scene.add(model);
 
       let contactTextMesh = null;
 
       model.traverse((child) => {
-        // Check for contact text on ALL objects (could be Group or Mesh)
+        // Grab the contact text on ANY object type (Group or Mesh)
         if (child.name === "Contact" || child.name === "Text") {
           contactTextMesh = child;
           console.log("✅ Found contact object:", child.name, child.type);
@@ -209,12 +189,12 @@ requestAnimationFrame(() => {
           if (!(child.material instanceof THREE.MeshStandardMaterial)) {
             child.material = new THREE.MeshStandardMaterial({ color: child.material.color });
           }
-          child.material.metalness = 0.8;
-          child.material.roughness = 0.2;
-          child.material.envMapIntensity = 1.2;
-          child.material.needsUpdate = true;
+          child.material.metalness        = 0.8;
+          child.material.roughness        = 0.2;
+          child.material.envMapIntensity  = 1.2;
+          child.material.needsUpdate      = true;
 
-          if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+          if (child.material.map)         child.material.map.encoding         = THREE.sRGBEncoding;
           if (child.material.emissiveMap) child.material.emissiveMap.encoding = THREE.sRGBEncoding;
 
           if (screenVideos[child.name]) {
@@ -229,13 +209,12 @@ requestAnimationFrame(() => {
         }
       });
 
-      // Build invisible hit box over the contact text, now world matrices are set
+      // Build invisible hit box over the contact text now world matrices are ready
       if (contactTextMesh) {
         contactTextMesh.updateWorldMatrix(true, true);
 
-        // Get world position & size via bounding box
-        const bbox = new THREE.Box3().setFromObject(contactTextMesh);
-        const size = new THREE.Vector3();
+        const bbox   = new THREE.Box3().setFromObject(contactTextMesh);
+        const size   = new THREE.Vector3();
         const center = new THREE.Vector3();
         bbox.getSize(size);
         bbox.getCenter(center);
@@ -245,23 +224,21 @@ requestAnimationFrame(() => {
           Math.max(size.y * 2.0, 0.3),
           Math.max(size.z, 0.3)
         );
-        const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+        const hitMat  = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
         contactHitBox = new THREE.Mesh(hitGeo, hitMat);
         contactHitBox.position.copy(center);
         contactHitBox.layers.set(0);
         scene.add(contactHitBox);
-        console.log("✅ contactHitBox at", contactHitBox.position, "size", size);
+        console.log("✅ contactHitBox created at", contactHitBox.position, "| size:", size);
       } else {
-        console.warn("⚠️ Contact/Text mesh not found in model");
+        console.warn("⚠️ Contact/Text mesh not found — check the object name in Blender");
       }
 
-      // Ready!
       hideLoading();
     },
     (xhr) => {
       if (xhr && xhr.lengthComputable) {
-        const pct = Math.min(95, Math.round((xhr.loaded / xhr.total) * 90));
-        setProgress(Math.max(pct, lastShownPct));
+        setProgress(Math.max(Math.min(95, Math.round((xhr.loaded / xhr.total) * 90)), lastShownPct));
       } else {
         setProgress(Math.min(90, lastShownPct + 1));
       }
@@ -275,40 +252,44 @@ requestAnimationFrame(() => {
 
 /* -------------------- Raycaster & interactions -------------------- */
 const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
+const mouse     = new THREE.Vector2();
 
 async function onUserInteraction(event) {
   event.preventDefault();
-  try { await loadSoundOnce('public/sounds/beep.mp3', clickSound, { volume: 0.5 }); if (!clickSound.isPlaying) clickSound.play(); } catch {}
+  try {
+    await loadSoundOnce('public/sounds/beep.mp3', clickSound, { volume: 0.5 });
+    if (!clickSound.isPlaying) clickSound.play();
+  } catch {}
 
-  let point = event.touches ? event.touches[0] : event;
-  mouse.x = (point.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(point.clientY / window.innerHeight) * 2 + 1;
+  const point = event.touches ? event.touches[0] : event;
+  mouse.x = ( point.clientX / window.innerWidth)  *  2 - 1;
+  mouse.y = -(point.clientY / window.innerHeight) *  2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
 
   raycaster.layers.set(0);
-  const clickableIntersects = raycaster.intersectObjects(
-    [...Object.values(clickableScreens), resumeScreen].filter(Boolean)
-  );
+  const targets = [...Object.values(clickableScreens), resumeScreen, contactHitBox].filter(Boolean);
+  const clickableIntersects = raycaster.intersectObjects(targets);
   if (clickableIntersects.length === 0) return;
 
-  const hit = clickableIntersects[0];
+  const hit          = clickableIntersects[0];
   const clickedObject = hit.object;
 
   raycaster.layers.set(1);
   const wallIntersects = raycaster.intersectObjects(walls, true);
   if (wallIntersects.length > 0 && wallIntersects[0].distance < hit.distance) {
-    console.log("❌ Click Blocked by Wall:", wallIntersects[0].object.name);
+    console.log("❌ Click blocked by wall:", wallIntersects[0].object.name);
     return;
   }
 
-  console.log("✅ Clicked:", clickedObject.name);
+  console.log("✅ Clicked:", clickedObject.name || "(contactHitBox)");
 
   if (screenVideos[clickedObject.name]) {
     panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
   } else if (clickedObject === resumeScreen) {
     panToScreen(resumeScreen, openResumePopup);
+  } else if (clickedObject === contactHitBox) {
+    openContactPopup();
   } else if (screenImages[clickedObject.name]) {
     if (screenImages[clickedObject.name] === "__OPEN_GALLERY__") {
       panToScreen(clickedObject, openGallery);
@@ -318,16 +299,17 @@ async function onUserInteraction(event) {
   }
 }
 
-window.addEventListener("click", onUserInteraction);
+window.addEventListener("click",      onUserInteraction);
 window.addEventListener("touchstart", onUserInteraction, { passive: false });
 
-/* -------------------- Camera pan helper -------------------- */
+/* -------------------- Camera pan -------------------- */
 function panToScreen(target, callback) {
-  const duration = 1000;
-  const startPos = camera.position.clone();
-  const targetPos = new THREE.Vector3(0, 0, 10);
+  const duration    = 1000;
+  const startPos    = camera.position.clone();
+  const targetPos   = new THREE.Vector3(0, 0, 10);
   const targetLookAt = new THREE.Vector3(0, 0, 0);
-  let startTime = null;
+  let startTime     = null;
+
   function animateCamera(time) {
     if (!startTime) startTime = time;
     const progress = Math.min((time - startTime) / duration, 1);
@@ -342,55 +324,87 @@ function panToScreen(target, callback) {
 
 /* -------------------- Popups -------------------- */
 async function openVideoPopup(videoPath) {
-  try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {}
+  try {
+    await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 });
+    if (!wooshSound.isPlaying) wooshSound.play();
+  } catch {}
   document.getElementById("video-source").src = videoPath;
   document.getElementById("video-player").load();
   document.getElementById("video-popup").style.display = "block";
   if (ambienceSound.isPlaying) ambienceSound.pause();
 }
 
+function openContactPopup() {
+  (async () => {
+    try {
+      await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 });
+      if (!wooshSound.isPlaying) wooshSound.play();
+    } catch {}
+  })();
+  const popup = document.getElementById("contact-popup");
+  if (popup) popup.style.display = "block";
+  controls.enabled = false;
+}
+
+function closeContactPopup() {
+  const popup = document.getElementById("contact-popup");
+  if (popup) popup.style.display = "none";
+  controls.enabled = true;
+}
+
 function openResumePopup() {
-  (async ()=>{ try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {} })();
+  (async () => {
+    try {
+      await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 });
+      if (!wooshSound.isPlaying) wooshSound.play();
+    } catch {}
+  })();
   document.getElementById("resume-popup").style.display = "block";
 }
 
 function openImageOverlay(imagePath) {
-  (async ()=>{ try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {} })();
-
-  const overlay = document.getElementById("image-overlay");
+  (async () => {
+    try {
+      await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 });
+      if (!wooshSound.isPlaying) wooshSound.play();
+    } catch {}
+  })();
+  const overlay      = document.getElementById("image-overlay");
   const imageElement = document.getElementById("overlay-image");
   if (!overlay || !imageElement) { console.error("❌ Overlay elements not found"); return; }
-
-  imageElement.src = imagePath;
-  overlay.style.display = "flex";
-  overlay.style.position = "fixed";
-  overlay.style.top = "0";
-  overlay.style.left = "0";
-  overlay.style.width = "100vw";
-  overlay.style.height = "100vh";
-  overlay.style.background = "rgba(0, 0, 0, 0.8)";
-  overlay.style.justifyContent = "center";
-  overlay.style.alignItems = "center";
-  overlay.style.flexDirection = "column";
-  overlay.style.zIndex = "9999";
+  imageElement.src              = imagePath;
+  overlay.style.display         = "flex";
+  overlay.style.position        = "fixed";
+  overlay.style.top             = "0";
+  overlay.style.left            = "0";
+  overlay.style.width           = "100vw";
+  overlay.style.height          = "100vh";
+  overlay.style.background      = "rgba(0,0,0,0.8)";
+  overlay.style.justifyContent  = "center";
+  overlay.style.alignItems      = "center";
+  overlay.style.flexDirection   = "column";
+  overlay.style.zIndex          = "9999";
 }
 
 function closePopup(event) {
   event.preventDefault();
-  if (event.target.id === "close-popup") {
+  const id = event.target.id;
+  if (id === "close-popup") {
     document.getElementById("video-popup").style.display = "none";
     if (!ambienceSound.isPlaying) ambienceSound.play();
-  } else if (event.target.id === "close-resume-popup") {
+  } else if (id === "close-resume-popup") {
     document.getElementById("resume-popup").style.display = "none";
-  } else if (event.target.id === "close-overlay") {
+  } else if (id === "close-overlay") {
     document.getElementById("image-overlay").style.display = "none";
+  } else if (id === "close-contact-popup") {
+    closeContactPopup();
   }
 }
 
 function addCloseEventListener(buttonId) {
   const button = document.getElementById(buttonId);
   if (button) {
-    button.addEventListener("click", closePopup);
+    button.addEventListener("click",      closePopup);
     button.addEventListener("touchstart", closePopup, { passive: false });
   } else {
     console.error(`❌ Close button not found: ${buttonId}`);
@@ -399,8 +413,9 @@ function addCloseEventListener(buttonId) {
 addCloseEventListener("close-popup");
 addCloseEventListener("close-resume-popup");
 addCloseEventListener("close-overlay");
+addCloseEventListener("close-contact-popup");
 
-/* -------------------- Postprocessing (bloom delayed) -------------------- */
+/* -------------------- Postprocessing -------------------- */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
@@ -408,126 +423,93 @@ let bloomPass = null;
 requestAnimationFrame(() => {
   bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
   bloomPass.threshold = 0.3;
-  bloomPass.strength = 1.0;
-  bloomPass.radius = 0.6;
+  bloomPass.strength  = 1.0;
+  bloomPass.radius    = 0.6;
   composer.addPass(bloomPass);
 });
 
 function animate() {
   requestAnimationFrame(animate);
-
   if (waterReflector.userData.shader) {
-    if (waterReflector.userData.shader.uniforms.rippleTime.value > 0) {
-      waterReflector.userData.shader.uniforms.rippleTime.value += 0.05;
-      if (waterReflector.userData.shader.uniforms.rippleTime.value > 3) {
-        waterReflector.userData.shader.uniforms.rippleTime.value = 0;
-      }
+    const rt = waterReflector.userData.shader.uniforms.rippleTime;
+    if (rt.value > 0) {
+      rt.value += 0.05;
+      if (rt.value > 3) rt.value = 0;
     }
   }
-
   controls.update();
   composer.render();
 }
 animate();
 
 /* ================================
-   📸 PHOTOGRAPHY GALLERY — thumbs in grid, full-res in overlay
+   📸 PHOTOGRAPHY GALLERY
    ================================ */
-
-/** 🔧 CONFIG — change to match your setup */
 const GALLERY_COUNT = 36;
-const FULL_DIR  = 'public/photography/full/';   // where the originals are
-const THUMB_DIR = 'public/photography/thumbs/'; // where the compressed thumbs are
-const FULL_EXT  = '.jpg';   // originals extension ('.jpg' | '.png' | '.webp')
-const THUMB_EXT = '.jpg';  // thumbs extension  
+const FULL_DIR  = 'public/photography/full/';
+const THUMB_DIR = 'public/photography/thumbs/';
+const FULL_EXT  = '.jpg';
+const THUMB_EXT = '.jpg';
 
-/** DOM hooks */
 const galleryOverlay = document.getElementById("photo-gallery");
-const gridView = galleryOverlay?.querySelector(".pg-gridView") || null;
-const grid = document.getElementById("pg-grid") || null;
-const closeGridBtn = document.getElementById("pg-closeGrid") || null;
-
-const lightbox = document.getElementById("pg-lightbox") || null;
-const lightboxImg = document.getElementById("pg-lightboxImg") || null;
-const backBtn = document.getElementById("pg-backToGrid") || null;
-const prevBtn = document.getElementById("pg-prev") || null;
-const nextBtn = document.getElementById("pg-next") || null;
+const gridView       = galleryOverlay?.querySelector(".pg-gridView") || null;
+const grid           = document.getElementById("pg-grid")           || null;
+const closeGridBtn   = document.getElementById("pg-closeGrid")      || null;
+const lightbox       = document.getElementById("pg-lightbox")       || null;
+const lightboxImg    = document.getElementById("pg-lightboxImg")    || null;
+const backBtn        = document.getElementById("pg-backToGrid")     || null;
+const prevBtn        = document.getElementById("pg-prev")           || null;
+const nextBtn        = document.getElementById("pg-next")           || null;
 
 let currentIndex = 0;
 let galleryReady = false;
 
-/** Helpers to build URLs */
 const getThumb = (i) => `${THUMB_DIR}${i}${THUMB_EXT}`;
 const getFull  = (i) => `${FULL_DIR}${i}${FULL_EXT}`;
 
-/** Build grid using THUMBS only (fast), fall back to full if thumb missing */
 function buildGrid() {
   if (!grid) return;
-
   const frag = document.createDocumentFragment();
-
   for (let i = 1; i <= GALLERY_COUNT; i++) {
     const img = document.createElement('img');
-    img.alt = `Photo ${i}`;
-    img.loading = 'lazy';
-    img.decoding = 'async';
+    img.alt           = `Photo ${i}`;
+    img.loading       = 'lazy';
+    img.decoding      = 'async';
     img.fetchPriority = 'low';
     img.setAttribute('data-lazy', '');
     img.dataset.index = i;
-    img.dataset.full = getFull(i);
-    img.src = getThumb(i);
-
-    img.addEventListener('load', () => {
-      img.setAttribute('data-loaded', '1');
-      img.removeAttribute('data-lazy');
-    });
-
-    img.addEventListener('error', () => {
-      img.src = img.dataset.full;
-    });
-
+    img.dataset.full  = getFull(i);
+    img.src           = getThumb(i);
+    img.addEventListener('load',  () => { img.setAttribute('data-loaded', '1'); img.removeAttribute('data-lazy'); });
+    img.addEventListener('error', () => { img.src = img.dataset.full; });
     img.addEventListener('click', () => openLightbox(i));
     frag.appendChild(img);
   }
-
   grid.replaceChildren(frag);
   hydrateLazyImages();
 }
 
-/** IntersectionObserver to avoid loading thumbs until scrolled into view */
 function hydrateLazyImages() {
   if (!('IntersectionObserver' in window) || !gridView) {
-    grid.querySelectorAll('img[data-lazy]').forEach(img => {
-      img.removeAttribute('data-lazy');
-    });
+    grid.querySelectorAll('img[data-lazy]').forEach(img => img.removeAttribute('data-lazy'));
     return;
   }
-
   const io = new IntersectionObserver((entries, obs) => {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
-      const img = entry.target;
-      img.removeAttribute('data-lazy');
-      obs.unobserve(img);
+      entry.target.removeAttribute('data-lazy');
+      obs.unobserve(entry.target);
     }
   }, { root: gridView, rootMargin: '200px 0px', threshold: 0.01 });
-
   grid.querySelectorAll('img[data-lazy]').forEach(img => io.observe(img));
 }
 
-function ensureGallery() {
-  if (galleryReady) return;
-  buildGrid();
-  galleryReady = true;
-}
+function ensureGallery() { if (!galleryReady) { buildGrid(); galleryReady = true; } }
 
-/** Open/close gallery */
 function openGallery() {
-  if (typeof controls !== 'undefined' && controls) controls.enabled = false;
+  if (controls) controls.enabled = false;
   if (!galleryOverlay || !gridView) return;
-
   ensureGallery();
-
   galleryOverlay.classList.add('pg-open');
   gridView.classList.add('pg-show');
   if (lightbox) lightbox.classList.remove('pg-show');
@@ -537,127 +519,82 @@ function openGallery() {
 function closeGallery() {
   if (!galleryOverlay) return;
   galleryOverlay.classList.remove('pg-open', 'pg-image-open');
-  gridView && gridView.classList.remove('pg-show');
-  lightbox && lightbox.classList.remove('pg-show');
+  gridView  && gridView.classList.remove('pg-show');
+  lightbox  && lightbox.classList.remove('pg-show');
   galleryOverlay.setAttribute('aria-hidden', 'true');
-  if (typeof controls !== 'undefined' && controls) controls.enabled = true;
+  if (controls) controls.enabled = true;
 }
 
-/** Lightbox — progressive: show thumb first, then swap to full when it finishes */
 function openLightbox(i) {
   currentIndex = i;
   setLightboxImage(true);
   galleryOverlay && galleryOverlay.classList.add('pg-image-open');
-  if (lightbox) {
-    lightbox.classList.add('pg-show');
-    lightbox.setAttribute('aria-hidden','false');
-  }
+  if (lightbox) { lightbox.classList.add('pg-show'); lightbox.setAttribute('aria-hidden', 'false'); }
   prefetchNeighbors();
 }
 
 function backToGrid() {
-  if (lightbox) {
-    lightbox.classList.remove('pg-show');
-    lightbox.setAttribute('aria-hidden','true');
-  }
+  if (lightbox) { lightbox.classList.remove('pg-show'); lightbox.setAttribute('aria-hidden', 'true'); }
   galleryOverlay && galleryOverlay.classList.remove('pg-image-open');
 }
 
-/** Load current image progressively */
 function setLightboxImage(priority = false) {
   if (!lightboxImg) return;
-  const idx = currentIndex;
-  const thumbURL = getThumb(idx);
-  const fullURL  = getFull(idx);
-
-  lightboxImg.src = thumbURL;
+  const idx     = currentIndex;
+  lightboxImg.src = getThumb(idx);
   lightboxImg.alt = `Photo ${idx}`;
   if (priority) lightboxImg.fetchPriority = 'high';
-
-  const hi = new Image();
+  const hi    = new Image();
   hi.decoding = 'async';
-  hi.loading = 'eager';
-  hi.src = fullURL;
-  hi.onload = () => {
-    if (currentIndex === idx) {
-      lightboxImg.src = fullURL;
-    }
-  };
+  hi.loading  = 'eager';
+  hi.src      = getFull(idx);
+  hi.onload   = () => { if (currentIndex === idx) lightboxImg.src = getFull(idx); };
 }
 
-/** Preload neighbors (full-res) */
 function prefetchNeighbors() {
   const prevIdx = (currentIndex - 1 + GALLERY_COUNT) % GALLERY_COUNT || GALLERY_COUNT;
   const nextIdx = (currentIndex % GALLERY_COUNT) + 1;
-
   [prevIdx, nextIdx].forEach(idx => {
-    const url = getFull(idx);
-    const link = document.createElement('link');
-    link.rel = 'preload';
-    link.as = 'image';
-    link.href = url;
+    const link  = document.createElement('link');
+    link.rel    = 'preload';
+    link.as     = 'image';
+    link.href   = getFull(idx);
     document.head.appendChild(link);
     setTimeout(() => link.remove(), 5000);
   });
 }
 
-function prev() {
-  currentIndex = (currentIndex - 2 + GALLERY_COUNT) % GALLERY_COUNT + 1;
-  setLightboxImage();
-  prefetchNeighbors();
-}
-function next() {
-  currentIndex = (currentIndex % GALLERY_COUNT) + 1;
-  setLightboxImage();
-  prefetchNeighbors();
-}
+function prev() { currentIndex = (currentIndex - 2 + GALLERY_COUNT) % GALLERY_COUNT + 1; setLightboxImage(); prefetchNeighbors(); }
+function next() { currentIndex = (currentIndex % GALLERY_COUNT) + 1;                      setLightboxImage(); prefetchNeighbors(); }
 
-/** Events */
 closeGridBtn && closeGridBtn.addEventListener('click', closeGallery);
-prevBtn && prevBtn.addEventListener('click', prev);
-nextBtn && nextBtn.addEventListener('click', next);
-backBtn && backBtn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); backToGrid(); });
+prevBtn      && prevBtn.addEventListener('click', prev);
+nextBtn      && nextBtn.addEventListener('click', next);
+backBtn      && backBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); backToGrid(); });
 
 document.addEventListener('click', (e) => {
-  const t = e.target;
-  if (!t || t.nodeType !== 1) return;
-  const backEl = t.closest && t.closest('#pg-backToGrid');
-  if (backEl) {
-    e.preventDefault(); e.stopPropagation();
-    backToGrid();
-  }
+  if (e.target?.closest?.('#pg-backToGrid')) { e.preventDefault(); e.stopPropagation(); backToGrid(); }
 });
 
 if (galleryOverlay) {
   galleryOverlay.addEventListener('click', (e) => {
-    const el = e.target;
-    if (el && el.classList && el.classList.contains('pg-lightbox-scrim')) {
-      e.preventDefault(); e.stopPropagation();
-      backToGrid();
-    }
+    if (e.target?.classList?.contains('pg-lightbox-scrim')) { e.preventDefault(); e.stopPropagation(); backToGrid(); }
   });
 }
 
 window.addEventListener('keydown', (e) => {
-  if (!galleryOverlay || !galleryOverlay.classList.contains('pg-open')) return;
-  if (e.key === 'Escape') {
-    if (lightbox && lightbox.classList.contains('pg-show')) backToGrid();
-    else closeGallery();
-  } else if (e.key === 'ArrowLeft' && lightbox && lightbox.classList.contains('pg-show')) {
-    prev();
-  } else if (e.key === 'ArrowRight' && lightbox && lightbox.classList.contains('pg-show')) {
-    next();
-  }
+  if (!galleryOverlay?.classList.contains('pg-open')) return;
+  if (e.key === 'Escape')      { lightbox?.classList.contains('pg-show') ? backToGrid() : closeGallery(); }
+  else if (e.key === 'ArrowLeft'  && lightbox?.classList.contains('pg-show')) prev();
+  else if (e.key === 'ArrowRight' && lightbox?.classList.contains('pg-show')) next();
 });
 
-/** Optional: touch swipe on lightbox */
 let sx = 0, sy = 0;
 if (lightbox) {
-  lightbox.addEventListener('touchstart', (e)=>{ const t = e.touches[0]; sx = t.clientX; sy = t.clientY; }, {passive:true});
-  lightbox.addEventListener('touchend', (e)=>{
-    const t = e.changedTouches[0];
-    const dx = t.clientX - sx;
-    const dy = t.clientY - sy;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
-  }, {passive:true});
+  lightbox.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  lightbox.addEventListener('touchend',   (e) => {
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) dx > 0 ? prev() : next();
+  }, { passive: true });
 }
