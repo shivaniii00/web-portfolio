@@ -173,6 +173,7 @@ loader.setMeshoptDecoder(MeshoptDecoder);
 
 let clickableScreens = {};
 let resumeScreen = null;
+let contactHitBox = null;
 const walls = [];
 
 const screenVideos = {
@@ -195,7 +196,15 @@ requestAnimationFrame(() => {
       const model = gltf.scene;
       scene.add(model);
 
+      let contactTextMesh = null;
+
       model.traverse((child) => {
+        // Check for contact text on ALL objects (could be Group or Mesh)
+        if (child.name === "Contact" || child.name === "Text") {
+          contactTextMesh = child;
+          console.log("✅ Found contact object:", child.name, child.type);
+        }
+
         if (child.isMesh) {
           if (!(child.material instanceof THREE.MeshStandardMaterial)) {
             child.material = new THREE.MeshStandardMaterial({ color: child.material.color });
@@ -214,45 +223,36 @@ requestAnimationFrame(() => {
             clickableScreens[child.name] = child; child.layers.set(0);
           } else if (child.name === "resume_screen") {
             resumeScreen = child; child.layers.set(0);
-          } else if (child.name === "Contact") {
-            // Store reference — hit box built after traverse so world matrix is ready
-            child.layers.set(0);
-            window.__contactTextMesh = child;
           } else if (boundingBoxNames.includes(child.name)) {
             child.layers.set(1); walls.push(child);
           }
         }
       });
 
-      // Debug: log all mesh names so we can confirm "Text" is correct
-      model.traverse((child) => {
-        if (child.isMesh) console.log("MESH:", child.name);
-      });
+      // Build invisible hit box over the contact text, now world matrices are set
+      if (contactTextMesh) {
+        contactTextMesh.updateWorldMatrix(true, true);
 
-      // Build contact hit box now that world matrices are ready
-      const textMesh = window.__contactTextMesh;
-      if (textMesh) {
-        textMesh.geometry.computeBoundingBox();
-        const bb = textMesh.geometry.boundingBox;
-        const w = Math.abs(bb.max.x - bb.min.x) * 1.4 || 1.5;
-        const h = Math.abs(bb.max.y - bb.min.y) * 2.0 || 0.5;
-        const d = 0.3;
-        const hitGeo = new THREE.BoxGeometry(w, h, d);
+        // Get world position & size via bounding box
+        const bbox = new THREE.Box3().setFromObject(contactTextMesh);
+        const size = new THREE.Vector3();
+        const center = new THREE.Vector3();
+        bbox.getSize(size);
+        bbox.getCenter(center);
+
+        const hitGeo = new THREE.BoxGeometry(
+          Math.max(size.x * 1.4, 0.5),
+          Math.max(size.y * 2.0, 0.3),
+          Math.max(size.z, 0.3)
+        );
         const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
         contactHitBox = new THREE.Mesh(hitGeo, hitMat);
-        textMesh.updateWorldMatrix(true, false);
-        textMesh.getWorldPosition(contactHitBox.position);
-        textMesh.getWorldQuaternion(contactHitBox.quaternion);
-        const cx = (bb.min.x + bb.max.x) / 2;
-        const cy = (bb.min.y + bb.max.y) / 2;
-        // Apply local centre offset in world space
-        const offset = new THREE.Vector3(cx, cy, 0).applyQuaternion(contactHitBox.quaternion);
-        contactHitBox.position.add(offset);
+        contactHitBox.position.copy(center);
         contactHitBox.layers.set(0);
         scene.add(contactHitBox);
-        console.log("✅ contactHitBox created at", contactHitBox.position);
+        console.log("✅ contactHitBox at", contactHitBox.position, "size", size);
       } else {
-        console.warn("⚠️ Text mesh not found — check mesh name in Blender");
+        console.warn("⚠️ Contact/Text mesh not found in model");
       }
 
       // Ready!
@@ -661,7 +661,3 @@ if (lightbox) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
   }, {passive:true});
 }
-
-
-
-
