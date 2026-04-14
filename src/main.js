@@ -8,7 +8,36 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+/* 🔽 NEW: decoders for Draco + Meshopt */
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 
+/* -------------------- quick asset config -------------------- */
+const ASSETS = {
+  MODEL: "public/models/cyberpunk_station.glb"
+};
+
+/* -------------------- Loading UI helpers -------------------- */
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingBarFill = document.getElementById('loading-bar-fill');
+const loadingPercentEl = document.getElementById('loading-percent');
+
+let lastShownPct = 0;
+function setProgress(pct) {
+  const p = Math.max(0, Math.min(100, pct|0));
+  if (p < lastShownPct) return; // never go backwards
+  lastShownPct = p;
+  if (loadingBarFill) loadingBarFill.style.width = p + '%';
+  if (loadingPercentEl) loadingPercentEl.textContent = p + '%';
+}
+function hideLoading() {
+  if (!loadingOverlay) return;
+  setProgress(100);
+  loadingOverlay.classList.add('hidden');
+  setTimeout(() => { loadingOverlay.style.display = 'none'; }, 400);
+}
+
+/* -------------------- Three.js scene -------------------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
@@ -17,78 +46,85 @@ camera.position.set(0, 0, 10);
 
 const renderer = new THREE.WebGLRenderer({
   canvas: document.getElementById("three-canvas"),
-  antialias: false, // ✅ Disable antialiasing for performance
-  powerPreference: "high-performance", // ✅ Force high-performance GPU usage
+  antialias: false,
+  powerPreference: "high-performance",
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // ✅ Limit pixel density
+
+const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+const startDPR = isMobile ? 1.25 : 1.5;
+renderer.setPixelRatio(startDPR);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
+
+setTimeout(() => {
+  const bump = isMobile ? 1.5 : 2;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, bump));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}, 2000);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.maxPolarAngle = Math.PI / 2.2;
 controls.minPolarAngle = Math.PI / 3;
-controls.enableZoom = true; // ✅ Allow zooming on mobile
-controls.enablePan = true; // ✅ Enable panning on mobile
-controls.touchZoomSpeed = 0.5; // ✅ Adjust touch zoom sensitivity
-controls.touchRotateSpeed = 1.0; // ✅ Adjust touch rotation speed
+controls.enableZoom = true;
+controls.enablePan = true;
+controls.touchZoomSpeed = 0.5;
+controls.touchRotateSpeed = 1.0;
 
-
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Lower ambient for better glow effect
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
 scene.add(ambientLight);
-
-
-// Spotlight for contrast
 const spotlight = new THREE.SpotLight(0xffffff, 1.2);
 spotlight.position.set(0, 5, 5);
 spotlight.angle = Math.PI / 6;
 spotlight.penumbra = 0.5;
 scene.add(spotlight);
 
-
-// 🎵 Audio setup
+/* -------------------- Audio (lazy) -------------------- */
 const listener = new THREE.AudioListener();
 camera.add(listener);
-
 const audioLoader = new THREE.AudioLoader();
-
-// ✅ Ambient Sound (Plays in loop)
 const ambienceSound = new THREE.Audio(listener);
-audioLoader.load('public/sounds/ambience.wav', (buffer) => {
-  ambienceSound.setBuffer(buffer);
-  ambienceSound.setLoop(true);
-  ambienceSound.setVolume(0.3);
-  ambienceSound.play(); // Start playing immediately
-});
-
-// ✅ Click Sound (Plays on interaction)
 const clickSound = new THREE.Audio(listener);
-audioLoader.load('public/sounds/beep.mp3', (buffer) => {
-  clickSound.setBuffer(buffer);
-  clickSound.setLoop(false);
-  clickSound.setVolume(0.5);
-});
-
-// ✅ Woosh Sound (Plays when a pop-up opens)
 const wooshSound = new THREE.Audio(listener);
-audioLoader.load('public/sounds/woosh.wav', (buffer) => {
-  wooshSound.setBuffer(buffer);
-  wooshSound.setLoop(false);
-  wooshSound.setVolume(0.7);
-});
 
+function loadSoundOnce(path, target, { loop=false, volume=0.5 } = {}) {
+  return new Promise((resolve, reject) => {
+    if (target.isAudio && target.buffer) return resolve();
+    audioLoader.load(path, (buffer) => {
+      target.setBuffer(buffer);
+      target.setLoop(loop);
+      target.setVolume(volume);
+      resolve();
+    }, undefined, reject);
+  });
+}
+function setupAmbienceOnFirstGesture() {
+  const start = async () => {
+    try {
+      await loadSoundOnce('public/sounds/ambience.wav', ambienceSound, { loop:true, volume:0.3 });
+      if (!ambienceSound.isPlaying) ambienceSound.play();
+    } catch {}
+    window.removeEventListener('pointerdown', start, { capture: true });
+  };
+  window.addEventListener('pointerdown', start, { capture: true, passive: true });
+}
+setupAmbienceOnFirstGesture();
 
-// Interactive reflective water surface with ripples
+/* -------------------- Reflective water (reduced cost) -------------------- */
 const waterGeometry = new THREE.PlaneGeometry(100, 100);
+const scale = 0.5;
+const texW = Math.floor(window.innerWidth * window.devicePixelRatio * scale);
+const texH = Math.floor(window.innerHeight * window.devicePixelRatio * scale);
+
 const waterReflector = new Reflector(waterGeometry, {
   clipBias: 0.003,
-  textureWidth: window.innerWidth * window.devicePixelRatio,
-  textureHeight: window.innerHeight * window.devicePixelRatio,
+  textureWidth: texW,
+  textureHeight: texH,
   color: 0x5555ff,
-  recursion: 1
+  recursion: 0
 });
 waterReflector.rotation.x = -Math.PI / 2;
 waterReflector.position.y = -0.5;
@@ -96,7 +132,6 @@ waterReflector.position.y = -0.5;
 waterReflector.material.onBeforeCompile = (shader) => {
   shader.uniforms.clickPosition = { value: new THREE.Vector2(-1, -1) };
   shader.uniforms.rippleTime = { value: 0 };
-
   shader.fragmentShader = shader.fragmentShader.replace(
     `gl_FragColor = vec4( base, 1.0 );`,
     `
@@ -110,221 +145,211 @@ waterReflector.material.onBeforeCompile = (shader) => {
     gl_FragColor = mix(vec4(base.rgb, 1.0), rippleColor, 0.85);
     `
   );
-
   waterReflector.userData.shader = shader;
 };
-
 scene.add(waterReflector);
 
-const clock = new THREE.Clock();
+/* -------------------- LoadingManager + GLTF -------------------- */
+const manager = new THREE.LoadingManager();
+manager.onStart = () => { setProgress(5); };
+manager.onProgress = (url, itemsLoaded, itemsTotal) => {
+  const pct = Math.round((itemsLoaded / Math.max(itemsTotal, 1)) * 90);
+  setProgress(Math.max(pct, lastShownPct));
+};
+manager.onError = (url) => { console.warn('Failed to load:', url); };
 
-function onUserInteraction(event) {
-    event.preventDefault();
+const loader = new GLTFLoader(manager);
 
-    let touch = event.touches ? event.touches[0] : event;
-    const mouse = new THREE.Vector2();
-    mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+/* 🔽 NEW: wire Draco + Meshopt decoders so compressed GLBs load */
+const dracoLoader = new DRACOLoader();
+// Use Google's hosted Draco decoders (no files to host yourself).
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+dracoLoader.preload();
+loader.setDRACOLoader(dracoLoader);
 
-    raycaster.setFromCamera(mouse, camera);
+// Meshopt (harmless if not used; required if your GLB has EXT_meshopt_compression)
+loader.setMeshoptDecoder(MeshoptDecoder);
 
-    raycaster.layers.set(0); // Check Layer 0 (clickable objects)
-    const clickableIntersects = raycaster.intersectObjects([...Object.values(clickableScreens), resumeScreen].filter(Boolean));
-
-    if (clickableIntersects.length > 0) {
-        const clickedObject = clickableIntersects[0].object;
-
-        // Play beep sound on click
-        if (!clickSound.isPlaying) clickSound.play();
-
-        raycaster.layers.set(1); // Check walls
-        const wallIntersects = raycaster.intersectObjects(walls, true);
-
-        if (wallIntersects.length > 0 && wallIntersects[0].distance < clickableIntersects[0].distance) {
-            console.log("❌ Click Blocked by Wall:", wallIntersects[0].object.name);
-            return;
-        }
-
-        console.log("✅ Clicked:", clickedObject.name);
-        if (screenVideos[clickedObject.name]) {
-            panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
-        } else if (clickedObject === resumeScreen) {
-            panToScreen(resumeScreen, openResumePopup);
-        } else if (screenImages[clickedObject.name]) {
-            panToScreen(clickedObject, () => openImageOverlay(screenImages[clickedObject.name]));
-        }
-    }
-}
-
-// ✅ Add event listeners for BOTH clicks and touches
-window.addEventListener("click", onUserInteraction);
-window.addEventListener("touchstart", onUserInteraction, { passive: false });
-
-
-
-function animate() {
-  requestAnimationFrame(animate);
-  const elapsed = clock.getElapsedTime();
-  if (waterReflector.userData.shader) {
-    if (waterReflector.userData.shader.uniforms.rippleTime.value > 0) {
-      waterReflector.userData.shader.uniforms.rippleTime.value += 0.05;
-      if (waterReflector.userData.shader.uniforms.rippleTime.value > 3) {
-        waterReflector.userData.shader.uniforms.rippleTime.value = 0;
-      }
-    }
-  }
-  controls.update();
-  composer.render();
-}
-
-// Variables for clickable objects
-const loader = new GLTFLoader();
 let clickableScreens = {};
 let resumeScreen = null;
-const walls = []; // Walls will be stored here
-
+let contactHitBox = null;
+const walls = [];
 
 const screenVideos = {
-    "screen_3dcompositing": "public/videos/Showreel_Personal.mp4",
-    "screen_2dcompositing": "public/videos/Showreel_Professional.mp4",
-    "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
-    
+  "screen_3dcompositing": "public/videos/Showreel_Personal.mp4",
+  "screen_2dcompositing": "public/videos/Showreel_Professional.mp4",
+  "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
 };
-
-const screenImages = {
-  "access_screen": "public/images/intro_2.png" // Add access_screen mapped to an image
-};
-
-const resumeURL = "resume-vfx.pdf";
-
-// ✅ Your Custom Bounding Box Names from Blender
+const screenImages = { "photography_portfolio": "__OPEN_GALLERY__" };
+const resumeURL = "Shivani_Resume_2025.pdf";
 const boundingBoxNames = ["bounding_box_l", "bounding_box_b", "bounding_box_t"];
 
-// ✅ Load the 3D Model
-loader.load('public/models/cyberpunk_station.glb', function (gltf) {
-    const model = gltf.scene;
-    scene.add(model);
+// Delay heavy GLTF by one frame
+requestAnimationFrame(() => {
+  loader.load(
+    ASSETS.MODEL,
+    (gltf) => {
+      // Final 10%: building scene
+      setProgress(95);
 
-    model.traverse((child) => {
+      const model = gltf.scene;
+      scene.add(model);
+
+      model.traverse((child) => {
         if (child.isMesh) {
-            if (!(child.material instanceof THREE.MeshStandardMaterial)) {
-                child.material = new THREE.MeshStandardMaterial({ color: child.material.color });
-            }
-            child.material.metalness = 0.8;
-            child.material.roughness = 0.2;
-            child.material.envMapIntensity = 1.2;
-            child.material.needsUpdate = true;
-          
+          if (!(child.material instanceof THREE.MeshStandardMaterial)) {
+            child.material = new THREE.MeshStandardMaterial({ color: child.material.color });
+          }
+          child.material.metalness = 0.8;
+          child.material.roughness = 0.2;
+          child.material.envMapIntensity = 1.2;
+          child.material.needsUpdate = true;
+
           if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
           if (child.material.emissiveMap) child.material.emissiveMap.encoding = THREE.sRGBEncoding;
-            // ✅ Assign Layers
-            if (screenVideos[child.name]) {
-                clickableScreens[child.name] = child;
-                child.layers.set(0); // Interactive elements in Layer 0
-            } else if (screenImages[child.name]) { // ✅ Add access_screen support
-                clickableScreens[child.name] = child;
-                child.layers.set(0);
-            } else if (child.name === "resume_screen") {
-                resumeScreen = child;
-                child.layers.set(0);
-            } else if (boundingBoxNames.includes(child.name)) {
-                child.layers.set(1); // Bounding Boxes assigned to Layer 1 (walls)
-                walls.push(child);
-            }
+
+          if (screenVideos[child.name]) {
+            clickableScreens[child.name] = child; child.layers.set(0);
+          } else if (screenImages[child.name]) {
+            clickableScreens[child.name] = child; child.layers.set(0);
+          } else if (child.name === "resume_screen") {
+            resumeScreen = child; child.layers.set(0);
+          } else if (boundingBoxNames.includes(child.name)) {
+            child.layers.set(1); walls.push(child);
+          }
         }
-    });
-}, undefined, function (error) {
-    console.error('Error loading model:', error);
+      });
+
+      // Ready!
+      hideLoading();
+
+      // ---- Invisible contact hit box ----
+      // Adjust position.set(x, y, z) and BoxGeometry(w, h, d) to fit your text
+      const hitGeo = new THREE.BoxGeometry(1.8, 0.45, 0.2);
+      const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+      contactHitBox = new THREE.Mesh(hitGeo, hitMat);
+      // 👇 Set this to match where your "Contact Info" text sits in the scene
+      contactHitBox.position.set(0, 0, 0); // <-- ADJUST X, Y, Z
+      contactHitBox.layers.set(0);
+      scene.add(contactHitBox);
+    },
+    (xhr) => {
+      if (xhr && xhr.lengthComputable) {
+        const pct = Math.min(95, Math.round((xhr.loaded / xhr.total) * 90));
+        setProgress(Math.max(pct, lastShownPct));
+      } else {
+        setProgress(Math.min(90, lastShownPct + 1));
+      }
+    },
+    (error) => {
+      console.error('Error loading model:', error);
+      if (loadingPercentEl) loadingPercentEl.textContent = 'Load failed';
+    }
+  );
 });
 
-// ✅ Corrected Raycaster to Block Clicks Only If a Wall is In Front
+/* -------------------- Raycaster & interactions -------------------- */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-window.addEventListener('click', (event) => {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    
-    raycaster.setFromCamera(mouse, camera);
+async function onUserInteraction(event) {
+  event.preventDefault();
+  try { await loadSoundOnce('public/sounds/beep.mp3', clickSound, { volume: 0.5 }); if (!clickSound.isPlaying) clickSound.play(); } catch {}
 
-    // ✅ Step 1: Check for clickable objects first
-    raycaster.layers.set(0); // Check Layer 0 (clickable objects)
-    const clickableIntersects = raycaster.intersectObjects([...Object.values(clickableScreens), resumeScreen].filter(Boolean));
+  let point = event.touches ? event.touches[0] : event;
+  mouse.x = (point.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(point.clientY / window.innerHeight) * 2 + 1;
 
-    if (clickableIntersects.length > 0) {
-        const clickedObject = clickableIntersects[0].object;
+  raycaster.setFromCamera(mouse, camera);
 
-        // ✅ Step 2: Check if a wall is in front of the clicked object
-        raycaster.layers.set(1); // Now check Layer 1 (walls)
-        const wallIntersects = raycaster.intersectObjects(walls, true);
+  raycaster.layers.set(0);
+  const clickableIntersects = raycaster.intersectObjects(
+    [...Object.values(clickableScreens), resumeScreen, contactHitBox].filter(Boolean)
+  );
+  if (clickableIntersects.length === 0) return;
 
-        if (wallIntersects.length > 0 && wallIntersects[0].distance < clickableIntersects[0].distance) {
-            console.log("❌ Click Blocked by Wall:", wallIntersects[0].object.name);
-            return; // Stop click if a wall is in front
-        }
+  const hit = clickableIntersects[0];
+  const clickedObject = hit.object;
 
-        // ✅ If no wall is blocking, allow the click
-        console.log("✅ Clicked:", clickedObject.name);
-        if (screenVideos[clickedObject.name]) {
-            panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
-          } else if (clickedObject === resumeScreen) {
-            panToScreen(resumeScreen, openResumePopup);
-          } else if (screenImages[clickedObject.name]) { // ✅ New feature for access_screen
-            panToScreen(clickedObject, () => openImageOverlay(screenImages[clickedObject.name]));
-        }
+  raycaster.layers.set(1);
+  const wallIntersects = raycaster.intersectObjects(walls, true);
+  if (wallIntersects.length > 0 && wallIntersects[0].distance < hit.distance) {
+    console.log("❌ Click Blocked by Wall:", wallIntersects[0].object.name);
+    return;
+  }
+
+  console.log("✅ Clicked:", clickedObject.name);
+
+  if (screenVideos[clickedObject.name]) {
+    panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
+  } else if (clickedObject === resumeScreen) {
+    panToScreen(resumeScreen, openResumePopup);
+  } else if (clickedObject === contactHitBox) {
+    openContactPopup();
+  } else if (screenImages[clickedObject.name]) {
+    if (screenImages[clickedObject.name] === "__OPEN_GALLERY__") {
+      panToScreen(clickedObject, openGallery);
+    } else {
+      panToScreen(clickedObject, () => openImageOverlay(screenImages[clickedObject.name]));
     }
-});
-
-function panToScreen(target, callback) {
-    const duration = 1000;
-    const startPos = camera.position.clone();
-    const targetPos = new THREE.Vector3(0, 0, 10);
-    const targetLookAt = new THREE.Vector3(0, 0, 0);
-    let startTime = null;
-    function animateCamera(time) {
-        if (!startTime) startTime = time;
-        const progress = Math.min((time - startTime) / duration, 1);
-        camera.position.lerpVectors(startPos, targetPos, progress);
-        controls.target.lerpVectors(controls.target, targetLookAt, progress);
-        controls.update();
-        if (progress < 1) {
-            requestAnimationFrame(animateCamera);
-        } else if (callback) {
-            setTimeout(callback, 500);
-        }
-    }
-    requestAnimationFrame(animateCamera);
+  }
 }
 
-function openVideoPopup(videoPath) {
-  if (!wooshSound.isPlaying) wooshSound.play(); // Play woosh sound
+window.addEventListener("click", onUserInteraction);
+window.addEventListener("touchstart", onUserInteraction, { passive: false });
+
+/* -------------------- Camera pan helper -------------------- */
+function panToScreen(target, callback) {
+  const duration = 1000;
+  const startPos = camera.position.clone();
+  const targetPos = new THREE.Vector3(0, 0, 10);
+  const targetLookAt = new THREE.Vector3(0, 0, 0);
+  let startTime = null;
+  function animateCamera(time) {
+    if (!startTime) startTime = time;
+    const progress = Math.min((time - startTime) / duration, 1);
+    camera.position.lerpVectors(startPos, targetPos, progress);
+    controls.target.lerpVectors(controls.target, targetLookAt, progress);
+    controls.update();
+    if (progress < 1) requestAnimationFrame(animateCamera);
+    else if (callback) setTimeout(callback, 500);
+  }
+  requestAnimationFrame(animateCamera);
+}
+
+/* -------------------- Popups -------------------- */
+async function openVideoPopup(videoPath) {
+  try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {}
   document.getElementById("video-source").src = videoPath;
   document.getElementById("video-player").load();
   document.getElementById("video-popup").style.display = "block";
-
-  // Pause ambient music when video is playing
   if (ambienceSound.isPlaying) ambienceSound.pause();
 }
 
+function openContactPopup() {
+  (async () => { try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {} })();
+  const popup = document.getElementById("contact-popup");
+  if (popup) popup.style.display = "block";
+  controls.enabled = false;
+}
+
+function closeContactPopup() {
+  const popup = document.getElementById("contact-popup");
+  if (popup) popup.style.display = "none";
+  controls.enabled = true;
+}
 
 function openResumePopup() {
-  if (!wooshSound.isPlaying) wooshSound.play(); // Play woosh sound
+  (async ()=>{ try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {} })();
   document.getElementById("resume-popup").style.display = "block";
 }
 
-
 function openImageOverlay(imagePath) {
-  if (!wooshSound.isPlaying) wooshSound.play(); // Play woosh sound
-
-  console.log("🔍 Attempting to Open Image Overlay:", imagePath);
+  (async ()=>{ try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {} })();
 
   const overlay = document.getElementById("image-overlay");
   const imageElement = document.getElementById("overlay-image");
-
-  if (!overlay || !imageElement) {
-      console.error("❌ ERROR: Overlay elements not found in DOM");
-      return;
-  }
+  if (!overlay || !imageElement) { console.error("❌ Overlay elements not found"); return; }
 
   imageElement.src = imagePath;
   overlay.style.display = "flex";
@@ -340,11 +365,8 @@ function openImageOverlay(imagePath) {
   overlay.style.zIndex = "9999";
 }
 
-// ✅ Function to close popups
 function closePopup(event) {
-  event.preventDefault(); // ✅ Prevents unwanted extra touch events on mobile
-  console.log("✅ Close button clicked:", event.target.id); // ✅ Debugging log
-
+  event.preventDefault();
   if (event.target.id === "close-popup") {
     document.getElementById("video-popup").style.display = "none";
     if (!ambienceSound.isPlaying) ambienceSound.play();
@@ -352,35 +374,287 @@ function closePopup(event) {
     document.getElementById("resume-popup").style.display = "none";
   } else if (event.target.id === "close-overlay") {
     document.getElementById("image-overlay").style.display = "none";
+  } else if (event.target.id === "close-contact-popup") {
+    closeContactPopup();
   }
 }
 
-// ✅ Function to safely add event listeners
 function addCloseEventListener(buttonId) {
   const button = document.getElementById(buttonId);
   if (button) {
     button.addEventListener("click", closePopup);
     button.addEventListener("touchstart", closePopup, { passive: false });
-    console.log(`✅ Close event added for ${buttonId}`);
   } else {
     console.error(`❌ Close button not found: ${buttonId}`);
   }
 }
-
-// ✅ Attach event listeners for closing popups
 addCloseEventListener("close-popup");
 addCloseEventListener("close-resume-popup");
 addCloseEventListener("close-overlay");
+addCloseEventListener("close-contact-popup");
 
-
-
+/* -------------------- Postprocessing (bloom delayed) -------------------- */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
-bloomPass.threshold = 0.3;
-bloomPass.strength = 1.2;
-bloomPass.radius = 0.8;
-composer.addPass(bloomPass);
+let bloomPass = null;
+requestAnimationFrame(() => {
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
+  bloomPass.threshold = 0.3;
+  bloomPass.strength = 1.0;
+  bloomPass.radius = 0.6;
+  composer.addPass(bloomPass);
+});
 
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (waterReflector.userData.shader) {
+    if (waterReflector.userData.shader.uniforms.rippleTime.value > 0) {
+      waterReflector.userData.shader.uniforms.rippleTime.value += 0.05;
+      if (waterReflector.userData.shader.uniforms.rippleTime.value > 3) {
+        waterReflector.userData.shader.uniforms.rippleTime.value = 0;
+      }
+    }
+  }
+
+  controls.update();
+  composer.render();
+}
 animate();
+
+/* ================================
+   📸 PHOTOGRAPHY GALLERY — thumbs in grid, full-res in overlay
+   ================================ */
+
+/** 🔧 CONFIG — change to match your setup */
+const GALLERY_COUNT = 36;
+const FULL_DIR  = 'public/photography/full/';   // where the originals are
+const THUMB_DIR = 'public/photography/thumbs/'; // where the compressed thumbs are
+const FULL_EXT  = '.jpg';   // originals extension ('.jpg' | '.png' | '.webp')
+const THUMB_EXT = '.jpg';  // thumbs extension  
+
+/** DOM hooks */
+const galleryOverlay = document.getElementById("photo-gallery");
+const gridView = galleryOverlay?.querySelector(".pg-gridView") || null;
+const grid = document.getElementById("pg-grid") || null;
+const closeGridBtn = document.getElementById("pg-closeGrid") || null;
+
+const lightbox = document.getElementById("pg-lightbox") || null;
+const lightboxImg = document.getElementById("pg-lightboxImg") || null;
+const backBtn = document.getElementById("pg-backToGrid") || null;
+const prevBtn = document.getElementById("pg-prev") || null;
+const nextBtn = document.getElementById("pg-next") || null;
+
+let currentIndex = 0;
+let galleryReady = false;
+
+/** Helpers to build URLs */
+const getThumb = (i) => `${THUMB_DIR}${i}${THUMB_EXT}`;
+const getFull  = (i) => `${FULL_DIR}${i}${FULL_EXT}`;
+
+/** Build grid using THUMBS only (fast), fall back to full if thumb missing */
+function buildGrid() {
+  if (!grid) return;
+
+  const frag = document.createDocumentFragment();
+
+  for (let i = 1; i <= GALLERY_COUNT; i++) {
+    const img = document.createElement('img');
+    img.alt = `Photo ${i}`;
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.fetchPriority = 'low';
+    img.setAttribute('data-lazy', '');
+    img.dataset.index = i;
+    img.dataset.full = getFull(i);
+    img.src = getThumb(i);
+
+    img.addEventListener('load', () => {
+      img.setAttribute('data-loaded', '1');
+      img.removeAttribute('data-lazy');
+    });
+
+    img.addEventListener('error', () => {
+      img.src = img.dataset.full;
+    });
+
+    img.addEventListener('click', () => openLightbox(i));
+    frag.appendChild(img);
+  }
+
+  grid.replaceChildren(frag);
+  hydrateLazyImages();
+}
+
+/** IntersectionObserver to avoid loading thumbs until scrolled into view */
+function hydrateLazyImages() {
+  if (!('IntersectionObserver' in window) || !gridView) {
+    grid.querySelectorAll('img[data-lazy]').forEach(img => {
+      img.removeAttribute('data-lazy');
+    });
+    return;
+  }
+
+  const io = new IntersectionObserver((entries, obs) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const img = entry.target;
+      img.removeAttribute('data-lazy');
+      obs.unobserve(img);
+    }
+  }, { root: gridView, rootMargin: '200px 0px', threshold: 0.01 });
+
+  grid.querySelectorAll('img[data-lazy]').forEach(img => io.observe(img));
+}
+
+function ensureGallery() {
+  if (galleryReady) return;
+  buildGrid();
+  galleryReady = true;
+}
+
+/** Open/close gallery */
+function openGallery() {
+  if (typeof controls !== 'undefined' && controls) controls.enabled = false;
+  if (!galleryOverlay || !gridView) return;
+
+  ensureGallery();
+
+  galleryOverlay.classList.add('pg-open');
+  gridView.classList.add('pg-show');
+  if (lightbox) lightbox.classList.remove('pg-show');
+  galleryOverlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeGallery() {
+  if (!galleryOverlay) return;
+  galleryOverlay.classList.remove('pg-open', 'pg-image-open');
+  gridView && gridView.classList.remove('pg-show');
+  lightbox && lightbox.classList.remove('pg-show');
+  galleryOverlay.setAttribute('aria-hidden', 'true');
+  if (typeof controls !== 'undefined' && controls) controls.enabled = true;
+}
+
+/** Lightbox — progressive: show thumb first, then swap to full when it finishes */
+function openLightbox(i) {
+  currentIndex = i;
+  setLightboxImage(true);
+  galleryOverlay && galleryOverlay.classList.add('pg-image-open');
+  if (lightbox) {
+    lightbox.classList.add('pg-show');
+    lightbox.setAttribute('aria-hidden','false');
+  }
+  prefetchNeighbors();
+}
+
+function backToGrid() {
+  if (lightbox) {
+    lightbox.classList.remove('pg-show');
+    lightbox.setAttribute('aria-hidden','true');
+  }
+  galleryOverlay && galleryOverlay.classList.remove('pg-image-open');
+}
+
+/** Load current image progressively */
+function setLightboxImage(priority = false) {
+  if (!lightboxImg) return;
+  const idx = currentIndex;
+  const thumbURL = getThumb(idx);
+  const fullURL  = getFull(idx);
+
+  lightboxImg.src = thumbURL;
+  lightboxImg.alt = `Photo ${idx}`;
+  if (priority) lightboxImg.fetchPriority = 'high';
+
+  const hi = new Image();
+  hi.decoding = 'async';
+  hi.loading = 'eager';
+  hi.src = fullURL;
+  hi.onload = () => {
+    if (currentIndex === idx) {
+      lightboxImg.src = fullURL;
+    }
+  };
+}
+
+/** Preload neighbors (full-res) */
+function prefetchNeighbors() {
+  const prevIdx = (currentIndex - 1 + GALLERY_COUNT) % GALLERY_COUNT || GALLERY_COUNT;
+  const nextIdx = (currentIndex % GALLERY_COUNT) + 1;
+
+  [prevIdx, nextIdx].forEach(idx => {
+    const url = getFull(idx);
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'image';
+    link.href = url;
+    document.head.appendChild(link);
+    setTimeout(() => link.remove(), 5000);
+  });
+}
+
+function prev() {
+  currentIndex = (currentIndex - 2 + GALLERY_COUNT) % GALLERY_COUNT + 1;
+  setLightboxImage();
+  prefetchNeighbors();
+}
+function next() {
+  currentIndex = (currentIndex % GALLERY_COUNT) + 1;
+  setLightboxImage();
+  prefetchNeighbors();
+}
+
+/** Events */
+closeGridBtn && closeGridBtn.addEventListener('click', closeGallery);
+prevBtn && prevBtn.addEventListener('click', prev);
+nextBtn && nextBtn.addEventListener('click', next);
+backBtn && backBtn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); backToGrid(); });
+
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  if (!t || t.nodeType !== 1) return;
+  const backEl = t.closest && t.closest('#pg-backToGrid');
+  if (backEl) {
+    e.preventDefault(); e.stopPropagation();
+    backToGrid();
+  }
+});
+
+if (galleryOverlay) {
+  galleryOverlay.addEventListener('click', (e) => {
+    const el = e.target;
+    if (el && el.classList && el.classList.contains('pg-lightbox-scrim')) {
+      e.preventDefault(); e.stopPropagation();
+      backToGrid();
+    }
+  });
+}
+
+window.addEventListener('keydown', (e) => {
+  if (!galleryOverlay || !galleryOverlay.classList.contains('pg-open')) return;
+  if (e.key === 'Escape') {
+    if (lightbox && lightbox.classList.contains('pg-show')) backToGrid();
+    else closeGallery();
+  } else if (e.key === 'ArrowLeft' && lightbox && lightbox.classList.contains('pg-show')) {
+    prev();
+  } else if (e.key === 'ArrowRight' && lightbox && lightbox.classList.contains('pg-show')) {
+    next();
+  }
+});
+
+/** Optional: touch swipe on lightbox */
+let sx = 0, sy = 0;
+if (lightbox) {
+  lightbox.addEventListener('touchstart', (e)=>{ const t = e.touches[0]; sx = t.clientX; sy = t.clientY; }, {passive:true});
+  lightbox.addEventListener('touchend', (e)=>{
+    const t = e.changedTouches[0];
+    const dx = t.clientX - sx;
+    const dy = t.clientY - sy;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
+  }, {passive:true});
+}
+
+
+
+
