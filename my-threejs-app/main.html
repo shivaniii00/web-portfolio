@@ -1,31 +1,111 @@
-<!DOCTYPE html>
+<!doctype html><!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shivani's VFX Den</title>
-  <link rel="stylesheet" href="/style.css" />
+  <meta charset="utf-8" />
+  <title>Portfolio — Main</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Single import map -->
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+    "three/examples/jsm/loaders/GLTFLoader.js": "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js",
+    "three/examples/jsm/controls/OrbitControls.js": "https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js",
+    "three/examples/jsm/postprocessing/EffectComposer.js": "https://unpkg.com/three@0.161.0/examples/jsm/postprocessing/EffectComposer.js",
+    "three/examples/jsm/postprocessing/RenderPass.js": "https://unpkg.com/three@0.161.0/examples/jsm/postprocessing/RenderPass.js",
+    "three/examples/jsm/postprocessing/UnrealBloomPass.js": "https://unpkg.com/three@0.161.0/examples/jsm/postprocessing/UnrealBloomPass.js",
+    "three/examples/jsm/objects/Reflector.js": "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js",
+    "three/examples/jsm/postprocessing/ShaderPass.js": "https://unpkg.com/three@0.161.0/examples/jsm/postprocessing/ShaderPass.js",
+    "three/examples/jsm/loaders/DRACOLoader.js": "https://unpkg.com/three@0.161.0/examples/jsm/loaders/DRACOLoader.js",
+    "three/examples/jsm/libs/meshopt_decoder.module.js": "https://unpkg.com/three@0.161.0/examples/jsm/libs/meshopt_decoder.module.js"
+  }
+}
+</script>
+
+
+  <!-- Load your app AFTER DOM parse -->
+  <script src="main.js" type="module" defer></script>
 </head>
 <body>
+  <!-- Loading screen with progress -->
+  <div id="loading-overlay">
+    <div class="loading-wrap">
+      <div class="loading-title">Loading…</div>
+      <div class="loading-bar">
+        <div class="loading-bar-fill" id="loading-bar-fill"></div>
+      </div>
+      <div class="loading-percent" id="loading-percent">0%</div>
+      <div class="loading-hint">Optimizing scene…</div>
+    </div>
+  </div>
+
+  <!-- Three.js canvas -->
   <canvas id="three-canvas"></canvas>
 
+  <!-- Popups -->
   <div id="video-popup">
+    <button id="close-popup">Close</button>
     <video id="video-player" controls>
       <source id="video-source" src="" type="video/mp4" />
     </video>
-    <button id="close-popup">✖</button>
+  </div>
+
+  <!-- Contact Info Popup -->
+  <div id="contact-popup">
+    <button id="close-contact-popup" aria-label="Close contact info">✕</button>
+    <div class="contact-popup-inner">
+      <div class="contact-glitch-title" data-text="CONTACT.INFO">CONTACT.INFO</div>
+      <div class="contact-divider"></div>
+      <ul class="contact-list">
+        <li class="contact-item">
+          <span class="contact-label">EMAIL</span>
+          <a class="contact-value" href="mailto:chaturvedi.shivani.vfx@gmail.com">chaturvedi.shivani.vfx@gmail.com</a>
+        </li>
+        <li class="contact-item">
+          <span class="contact-label">LINKEDIN</span>
+          <a class="contact-value" href="https://www.linkedin.com/in/shivani-chaturvedi-vfx/" target="_blank" rel="noopener">https://www.linkedin.com/in/shivani-chaturvedi-vfx/</a>
+        </li>
+        <li class="contact-item">
+          <span class="contact-label">MOBILE</span>
+          <a class="contact-value" href="tel:+910000000000">+91 00000 00000</a>
+        </li>
+      </ul>
+      <div class="contact-scanline"></div>
+    </div>
   </div>
 
   <div id="resume-popup">
-    <iframe id="resume-viewer" src="/documents/resume.pdf"></iframe>
-    <button id="close-resume-popup">✖</button>
+    <button id="close-resume-popup">Close</button>
+    <iframe id="resume-viewer" src="Shivani_Resume_2025.pdf" title="Resume"></iframe>
   </div>
 
+  <!-- Simple single-image overlay used elsewhere -->
   <div id="image-overlay" class="overlay">
-    <img id="overlay-image" src="" alt="Overlay Image">
-    <button id="close-overlay">X</button>
+    <button id="close-overlay">Close</button>
+    <img id="overlay-image" alt="Overlay Image" />
   </div>
 
-  <script type="module" src="main.js"></script>
+  <!-- 📸 Photography Gallery (grid + on-top lightbox) -->
+  <div id="photo-gallery" class="pg-overlay" aria-hidden="true">
+    <!-- Grid -->
+    <div class="pg-gridView" role="dialog" aria-modal="true" aria-label="Photography Gallery">
+      <button id="pg-closeGrid" class="pg-closeGrid" aria-label="Close gallery grid">×</button>
+      <h2 class="pg-title">Photography</h2>
+      <div id="pg-grid" class="pg-grid" aria-live="polite"></div>
+    </div>
+    <!-- Lightbox -->
+    <div class="pg-lightbox" id="pg-lightbox" aria-hidden="true">
+      <div class="pg-lightbox-scrim"></div>
+      <div class="pg-lightbox-inner">
+        <button id="pg-backToGrid" class="pg-backToGrid" aria-label="Back to grid">←</button>
+        <button id="pg-prev" class="pg-prev" aria-label="Previous photo">❮</button>
+        <img id="pg-lightboxImg" alt="" />
+        <button id="pg-next" class="pg-next" aria-label="Next photo">❯</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
