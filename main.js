@@ -172,6 +172,7 @@ loader.setMeshoptDecoder(MeshoptDecoder);
 
 let clickableScreens = {};
 let resumeScreen = null;
+let contactHitBox = null;
 const walls = [];
 
 const screenVideos = {
@@ -221,6 +222,16 @@ requestAnimationFrame(() => {
 
       // Ready!
       hideLoading();
+
+      // ---- Invisible contact hit box ----
+      // Adjust position.set(x, y, z) and BoxGeometry(w, h, d) to fit your text
+      const hitGeo = new THREE.BoxGeometry(1.8, 0.45, 0.2);
+      const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+      contactHitBox = new THREE.Mesh(hitGeo, hitMat);
+      // 👇 Set this to match where your "Contact Info" text sits in the scene
+      contactHitBox.position.set(0, 0, 0); // <-- ADJUST X, Y, Z
+      contactHitBox.layers.set(0);
+      scene.add(contactHitBox);
     },
     (xhr) => {
       if (xhr && xhr.lengthComputable) {
@@ -253,7 +264,7 @@ async function onUserInteraction(event) {
 
   raycaster.layers.set(0);
   const clickableIntersects = raycaster.intersectObjects(
-    [...Object.values(clickableScreens), resumeScreen].filter(Boolean)
+    [...Object.values(clickableScreens), resumeScreen, contactHitBox].filter(Boolean)
   );
   if (clickableIntersects.length === 0) return;
 
@@ -273,6 +284,8 @@ async function onUserInteraction(event) {
     panToScreen(clickedObject, () => openVideoPopup(screenVideos[clickedObject.name]));
   } else if (clickedObject === resumeScreen) {
     panToScreen(resumeScreen, openResumePopup);
+  } else if (clickedObject === contactHitBox) {
+    openContactPopup();
   } else if (screenImages[clickedObject.name]) {
     if (screenImages[clickedObject.name] === "__OPEN_GALLERY__") {
       panToScreen(clickedObject, openGallery);
@@ -313,6 +326,19 @@ async function openVideoPopup(videoPath) {
   if (ambienceSound.isPlaying) ambienceSound.pause();
 }
 
+function openContactPopup() {
+  (async () => { try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {} })();
+  const popup = document.getElementById("contact-popup");
+  if (popup) popup.style.display = "block";
+  controls.enabled = false;
+}
+
+function closeContactPopup() {
+  const popup = document.getElementById("contact-popup");
+  if (popup) popup.style.display = "none";
+  controls.enabled = true;
+}
+
 function openResumePopup() {
   (async ()=>{ try { await loadSoundOnce('public/sounds/woosh.wav', wooshSound, { volume: 0.7 }); if (!wooshSound.isPlaying) wooshSound.play(); } catch {} })();
   document.getElementById("resume-popup").style.display = "block";
@@ -348,6 +374,8 @@ function closePopup(event) {
     document.getElementById("resume-popup").style.display = "none";
   } else if (event.target.id === "close-overlay") {
     document.getElementById("image-overlay").style.display = "none";
+  } else if (event.target.id === "close-contact-popup") {
+    closeContactPopup();
   }
 }
 
@@ -363,6 +391,7 @@ function addCloseEventListener(buttonId) {
 addCloseEventListener("close-popup");
 addCloseEventListener("close-resume-popup");
 addCloseEventListener("close-overlay");
+addCloseEventListener("close-contact-popup");
 
 /* -------------------- Postprocessing (bloom delayed) -------------------- */
 const composer = new EffectComposer(renderer);
@@ -625,7 +654,3 @@ if (lightbox) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
   }, {passive:true});
 }
-
-
-
-
