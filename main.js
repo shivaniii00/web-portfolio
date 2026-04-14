@@ -231,6 +231,7 @@ const raycaster = new THREE.Raycaster();
 const mouse     = new THREE.Vector2();
 
 async function onUserInteraction(event) {
+   if (event.target.closest('a')) return;  // ← add this line
   event.preventDefault();
   try {
     await loadSoundOnce('public/sounds/beep.mp3', clickSound, { volume: 0.5 });
