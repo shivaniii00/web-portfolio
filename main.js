@@ -646,3 +646,4 @@ if (lightbox) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
   }, {passive:true});
 }
+window.__scene = scene;
