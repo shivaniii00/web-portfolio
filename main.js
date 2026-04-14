@@ -40,6 +40,7 @@ function hideLoading() {
 /* -------------------- Three.js scene -------------------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
+window.__scene = scene;
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 0, 10);
@@ -213,32 +214,46 @@ requestAnimationFrame(() => {
             clickableScreens[child.name] = child; child.layers.set(0);
           } else if (child.name === "resume_screen") {
             resumeScreen = child; child.layers.set(0);
-          } else if (child.name === "Text") {
-            // Contact info text mesh — wrap with invisible hit box for easier clicking
+          } else if (child.name === "Contact") {
+            // Store reference — hit box built after traverse so world matrix is ready
             child.layers.set(0);
-            child.geometry.computeBoundingBox();
-            const bb = child.geometry.boundingBox;
-            const w = (bb.max.x - bb.min.x) * 1.3;
-            const h = (bb.max.y - bb.min.y) * 2.0;
-            const d = Math.max((bb.max.z - bb.min.z), 0.2);
-            const hitGeo = new THREE.BoxGeometry(w, h, d);
-            const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
-            contactHitBox = new THREE.Mesh(hitGeo, hitMat);
-            // Match the Text mesh world position
-            child.getWorldPosition(contactHitBox.position);
-            child.getWorldQuaternion(contactHitBox.quaternion);
-            // Centre the box over the text geometry
-            const cx = (bb.min.x + bb.max.x) / 2;
-            const cy = (bb.min.y + bb.max.y) / 2;
-            contactHitBox.position.x += cx;
-            contactHitBox.position.y += cy;
-            contactHitBox.layers.set(0);
-            scene.add(contactHitBox);
+            window.__contactTextMesh = child;
           } else if (boundingBoxNames.includes(child.name)) {
             child.layers.set(1); walls.push(child);
           }
         }
       });
+
+      // Debug: log all mesh names so we can confirm "Text" is correct
+      model.traverse((child) => {
+        if (child.isMesh) console.log("MESH:", child.name);
+      });
+
+      // Build contact hit box now that world matrices are ready
+      const textMesh = window.__contactTextMesh;
+      if (textMesh) {
+        textMesh.geometry.computeBoundingBox();
+        const bb = textMesh.geometry.boundingBox;
+        const w = Math.abs(bb.max.x - bb.min.x) * 1.4 || 1.5;
+        const h = Math.abs(bb.max.y - bb.min.y) * 2.0 || 0.5;
+        const d = 0.3;
+        const hitGeo = new THREE.BoxGeometry(w, h, d);
+        const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+        contactHitBox = new THREE.Mesh(hitGeo, hitMat);
+        textMesh.updateWorldMatrix(true, false);
+        textMesh.getWorldPosition(contactHitBox.position);
+        textMesh.getWorldQuaternion(contactHitBox.quaternion);
+        const cx = (bb.min.x + bb.max.x) / 2;
+        const cy = (bb.min.y + bb.max.y) / 2;
+        // Apply local centre offset in world space
+        const offset = new THREE.Vector3(cx, cy, 0).applyQuaternion(contactHitBox.quaternion);
+        contactHitBox.position.add(offset);
+        contactHitBox.layers.set(0);
+        scene.add(contactHitBox);
+        console.log("✅ contactHitBox created at", contactHitBox.position);
+      } else {
+        console.warn("⚠️ Text mesh not found — check mesh name in Blender");
+      }
 
       // Ready!
       hideLoading();
@@ -646,3 +661,7 @@ if (lightbox) {
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) { dx > 0 ? prev() : next(); }
   }, {passive:true});
 }
+
+
+
+
