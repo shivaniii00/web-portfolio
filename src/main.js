@@ -142,7 +142,7 @@ let contactHitBox    = null;
 const walls          = [];
 
 const screenVideos = {
-  "screen_3dcompositing":  "public/videos/Showreel_Personal.mp4",
+  "screen_3dcompositing":  "public/videos/Rotopaint_Showreel.mp4",
   "screen_2dcompositing":  "public/videos/Showreel_Professional.mp4",
   "screen_photogrammetry": "public/videos/Photogrammetry.mp4"
 };
