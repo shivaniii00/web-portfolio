@@ -1,18 +1,50 @@
+/* General page styling */
 body {  
     margin: 0; 
     overflow: hidden; 
     font-family: 'Arial', sans-serif; 
-    background-color: ; 
+    background-color: black;
 }
 
+/* Canvas styling */
 canvas {
     position: absolute;
     top: 0;
     left: 0;
     z-index: 0;
-  }
-  
+}
 
+/* ---------- Loading overlay ---------- */
+#loading-overlay {
+  position: fixed; inset: 0;
+  display: grid; place-items: center;
+  background: #000;
+  color: #9ff;
+  z-index: 1500;
+  opacity: 1;
+  transition: opacity .35s ease;
+}
+#loading-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.loading-wrap { width: min(420px, 90vw); text-align: center; }
+.loading-title { font: 600 18px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial; margin-bottom: 12px; }
+.loading-bar {
+  height: 10px; border-radius: 999px; overflow: hidden;
+  background: rgba(0,255,255,0.15);
+  box-shadow: 0 0 24px rgba(0,255,255,0.25) inset;
+}
+.loading-bar-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #07d, #0ff);
+  box-shadow: 0 0 14px rgba(0,255,255,0.7);
+  transition: width .18s ease;
+}
+.loading-percent { margin-top: 10px; font-weight: 600; letter-spacing: .3px; }
+.loading-hint { margin-top: 6px; font-size: 12px; color: #7fd; opacity: .8; }
+
+/* Popup containers for video, resume, and images */
 #video-popup, #resume-popup, #image-popup {
     display: none;
     position: fixed;
@@ -26,12 +58,30 @@ canvas {
     z-index: 1000;
 }
 
-#video-player, #resume-viewer, #popup-image {
+/* Resume popup: give it an explicit size so the iframe has room to fill */
+#resume-popup {
+    width: 90vw;
+    height: 95vh;
+    box-sizing: border-box;
+}
+
+/* Popup content */
+#video-player, #popup-image {
     width: 80vw;
     height: 80vh;
     border-radius: 8px;
 }
 
+/* Resume iframe fills its (now sized) popup instead of using viewport units */
+#resume-viewer {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+    border-radius: 8px;
+}
+
+/* Image-specific styling */
 #popup-image {
     width: auto;
     height: auto;
@@ -41,6 +91,35 @@ canvas {
     box-shadow: 0 0 40px rgba(0, 255, 255, 0.8);
 }
 
+/* Overlay background (image overlay used elsewhere) */
+.overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.overlay img { max-width: 80%; max-height: 80%; }
+
+/* Close button for overlay */
+#close-overlay {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: red;
+    color: white;
+    border: none;
+    font-size: 18px;
+    padding: 10px;
+    cursor: pointer;
+}
+
+/* Close buttons for popups */
 #close-popup, #close-resume-popup, #close-image-popup {
     position: absolute;
     top: 10px;
@@ -52,4 +131,348 @@ canvas {
     cursor: pointer;
     font-size: 16px;
     border-radius: 5px;
+    z-index: 10;
 }
+
+/* ===== Photography Gallery (overlay + grid + on-top lightbox) ===== */
+
+.pg-overlay {
+  position: fixed; inset: 0;
+  display: none;
+  z-index: 2000; /* above other popups (those use 1000) */
+}
+.pg-overlay.pg-open { display: block; }
+
+/* Grid view fills viewport and scrolls, grid stays visible under lightbox */
+.pg-gridView {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  padding: 72px 28px 28px;
+  overflow: auto;
+  background: rgba(0,0,0,0.85);
+}
+
+.pg-title {
+  margin: 0 0 16px;
+  font: 600 18px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: #fff;
+  letter-spacing: .3px;
+}
+
+.pg-closeGrid {
+  position: fixed; top: 16px; right: 16px;
+  font-size: 28px; line-height: 1;
+  border: 0; background: transparent; color: #fff; cursor: pointer;
+}
+
+/* Responsive auto-fill grid that never overflows horizontally */
+.pg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.pg-grid img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  cursor: zoom-in;
+  border-radius: 6px;
+  transition: transform 0.15s ease;
+}
+.pg-grid img:hover { transform: scale(1.03); }
+
+/* Lightbox overlay ABOVE grid, fully hides when not .pg-show */
+.pg-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transition: opacity .15s ease, visibility 0s linear .15s;
+}
+.pg-lightbox.pg-show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity .15s ease;
+}
+
+.pg-lightbox-scrim {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.65);
+  opacity: 0; transition: opacity .15s ease;
+}
+.pg-lightbox.pg-show .pg-lightbox-scrim { opacity: 1; }
+
+.pg-lightbox-inner {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Lightbox image (same style as #popup-image) */
+.pg-lightbox img {
+  width: auto;
+  height: auto;
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 10px;
+  box-shadow: 0 0 40px rgba(0, 255, 255, 0.8);
+  object-fit: contain;
+}
+
+/* ensure controls are above scrim */
+.pg-backToGrid, .pg-prev, .pg-next { z-index: 2; }
+
+/* Controls on top of the image */
+.pg-prev, .pg-next, .pg-backToGrid {
+  position: absolute;
+  border: 0; background: rgba(0,0,0,0.45); color: #fff; cursor: pointer;
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  font-size: 22px;
+  border-radius: 10px;
+}
+.pg-prev { left: 16px; }
+.pg-next { right: 16px; }
+.pg-backToGrid { top: 16px; left: 16px; font-size: 20px; width: 42px; height: 42px; }
+
+.pg-prev:hover, .pg-next:hover, .pg-backToGrid:hover, .pg-closeGrid:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+@media (max-width: 640px) {
+  .pg-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+
+/* Hide the grid close (×) when a photo overlay is open */
+.pg-overlay.pg-image-open .pg-closeGrid { display: none; }
+
+/* Subtle blur until thumb finishes loading */
+.pg-grid img[data-lazy],
+.pg-grid img:not([data-loaded="1"]) {
+  filter: blur(8px);
+  background: #111;
+  transition: filter .25s ease;
+}
+.pg-grid img[data-loaded="1"] {
+  filter: none;
+}
+
+/* --- End Photography Gallery --- */
+
+/* ===== Contact Info Popup ===== */
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@600;700&display=swap');
+
+#contact-popup {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1200;
+  width: min(420px, 90vw);
+  background: rgba(5, 8, 18, 0.92);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 1px rgba(0,255,255,0.08),
+    0 0 40px rgba(0, 255, 255, 0.25),
+    0 0 80px rgba(0, 100, 255, 0.15),
+    inset 0 0 60px rgba(0, 255, 255, 0.03);
+  overflow: hidden;
+  animation: contact-popup-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes contact-popup-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scaleY(0.92); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scaleY(1); }
+}
+
+.contact-popup-inner {
+  position: relative;
+  padding: 36px 32px 32px;
+  overflow: hidden;
+}
+
+/* Animated scanline sweep */
+.contact-scanline {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(0, 255, 255, 0.018) 3px,
+    rgba(0, 255, 255, 0.018) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+.contact-scanline::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 60px;
+  background: linear-gradient(to bottom, transparent, rgba(0,255,255,0.06), transparent);
+  animation: scanline-sweep 3.5s linear infinite;
+}
+@keyframes scanline-sweep {
+  from { top: -60px; }
+  to   { top: 100%; }
+}
+
+/* Glitch title */
+.contact-glitch-title {
+  position: relative;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: #00ffff;
+  text-shadow: 0 0 12px rgba(0,255,255,0.8), 0 0 30px rgba(0,255,255,0.3);
+  margin-bottom: 6px;
+  z-index: 1;
+}
+.contact-glitch-title::before,
+.contact-glitch-title::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  overflow: hidden;
+  opacity: 0.7;
+}
+.contact-glitch-title::before {
+  color: #ff00ff;
+  text-shadow: 2px 0 #ff00ff;
+  animation: glitch-a 4s infinite steps(1);
+  clip-path: polygon(0 20%, 100% 20%, 100% 40%, 0 40%);
+}
+.contact-glitch-title::after {
+  color: #00ffff;
+  text-shadow: -2px 0 #00ffff;
+  animation: glitch-b 4s infinite steps(1);
+  clip-path: polygon(0 60%, 100% 60%, 100% 75%, 0 75%);
+}
+@keyframes glitch-a {
+  0%,90%,100% { transform: translate(0); opacity: 0; }
+  91%          { transform: translate(-3px, 1px); opacity: 0.7; }
+  93%          { transform: translate(3px, -1px); opacity: 0.7; }
+  95%          { transform: translate(0); opacity: 0; }
+}
+@keyframes glitch-b {
+  0%,88%,100% { transform: translate(0); opacity: 0; }
+  89%          { transform: translate(3px, 2px); opacity: 0.6; }
+  91%          { transform: translate(-3px, -1px); opacity: 0.6; }
+  93%          { transform: translate(0); opacity: 0; }
+}
+
+/* Divider */
+.contact-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,255,255,0.6), transparent);
+  margin: 14px 0 24px;
+  position: relative;
+  z-index: 1;
+}
+.contact-divider::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: 50%;
+  transform: translateX(-50%);
+  width: 6px; height: 3px;
+  background: #00ffff;
+  box-shadow: 0 0 8px #00ffff;
+}
+
+/* Contact list */
+.contact-list {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.contact-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 14px;
+  border-left: 2px solid rgba(0, 255, 255, 0.35);
+  transition: border-color 0.2s ease;
+}
+.contact-item:hover {
+  border-color: rgba(0, 255, 255, 0.9);
+}
+
+.contact-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: rgba(0, 255, 255, 0.5);
+  text-transform: uppercase;
+}
+
+.contact-value {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  color: #e0f8ff;
+  text-decoration: none;
+  letter-spacing: 0.05em;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+.contact-value:hover {
+  color: #00ffff;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+}
+
+/* Close button */
+#close-contact-popup {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: transparent;
+  border: 1px solid rgba(0,255,255,0.25);
+  color: rgba(0,255,255,0.7);
+  font-size: 14px;
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  cursor: pointer;
+  border-radius: 2px;
+  z-index: 10;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+#close-contact-popup:hover {
+  background: rgba(0,255,255,0.12);
+  color: #fff;
+  border-color: rgba(0,255,255,0.7);
+}
+
+/* Corner accents */
+#contact-popup::before,
+#contact-popup::after {
+  content: '';
+  position: absolute;
+  width: 16px; height: 16px;
+  border-color: rgba(0, 255, 255, 0.6);
+  border-style: solid;
+  z-index: 2;
+}
+#contact-popup::before {
+  top: 0; left: 0;
+  border-width: 2px 0 0 2px;
+}
+#contact-popup::after {
+  bottom: 0; right: 0;
+  border-width: 0 2px 2px 0;
+}
+/* ===== End Contact Info Popup ===== */
